@@ -17,50 +17,98 @@ declare -i fill=20
 declare theWalls=""
 
 function initWalls {
+    local -n wally=$1
+    wally=""
     echo "Building map of $mapMaxX x $mapMaxY with a fill of $fill"
     for (( y = 0; y <= mapMaxY; y++)); do
         for (( x = 0; x <= mapMaxX; x++ )); do
             if [[ $y -eq 0 || $y -eq $mapMaxY ]]; then
-                theWalls+="█"
+                wally+="█"
             elif [[ $x -eq 0 || $x -eq $mapMaxX ]]; then
-                theWalls+="█"
+                wally+="█"
             elif [[ $fill -ge `randomGenerator` ]]; then
-                theWalls+="█"
+                wally+="█"
             else
-                theWalls+=" "
+                wally+=" "
             fi
         done
-        theWalls+="\n"
+        wally+="\n"
     done
 }
-initWalls
+initWalls theWalls
 
 echo -e "$theWalls"
 
 
-# declare -r CODE="code"
-# declare -r MOHS="mohs"
+declare -r CODE="code"
+declare -r MOHS="mohs"
+declare -r REPLACE="replace"
 
-# function makeMapItem {
-#     if [[ $# -lt 4 ]]; then
-#         echoerr "There must be at least four arguments: code, mohs, x, and y"
-#         exit 2
-#     fi
-#     if [[ ${#1} -gt 1 ]]; then
-#         echoerr "The code must be only one character, not the ${#1} from '$1'"
-#         exit 2
-#     fi
-#     if [[ $2 =~ [^0-9] ]]; then
-#         echoerr "The mohs must be a number, not '$2'"
-#         exit 2
-#     fi
-#     if [[ $3 =~ [^0-9] || $4 =~ [^0-9] ]]; then
-#         echoerr "The X and Y must be numbers, not '$3' and '$4'!"
-#         exit 2
-#     fi
-#     declare -A mapItem=(["$CODE"]=$1 ["$MOHS"]=$2)
-#     echo ${mapItem[@]}
-# }
+function makeMapItem {
+    if [[ $# -lt 4 ]]; then
+        echoerr "There must be at least four arguments: code, mohs, x, and y"
+        exit 2
+    fi
+    if [[ ${#1} -gt 1 ]]; then
+        echoerr "The code must be only one character, not the ${#1} from '$1'"
+        exit 2
+    fi
+    if [[ $2 =~ [^0-9] ]]; then
+        echoerr "The mohs must be a number, not '$2'"
+        exit 2
+    fi
+    if [[ $3 =~ [^0-9] || $4 =~ [^0-9] ]]; then
+        echoerr "The X and Y must be numbers, not '$3' and '$4'!"
+        exit 2
+    fi
+    local replace=" "
+    if [[ $# -ge 5 && ${#5} -eq 1 && $5 =~ [:print:] ]]; then
+        replace=$5
+    fi
+    mapItem="$1:$2:$3:$y:$replace:"
+    echo $mapItem
+}
+
+function retriveMapItemAttribute {
+    if [[ $# -lt 2 ]]; then
+        echoerr "There must be at least two arguments: mapItem and attribute, not '$@'"
+        return 2
+    fi
+    echo "item'$1'"
+    if ! [[ $1 =~ ^([[:alpha:]]):([[:digit:]]+):([[:digit:]]+):([[:digit:]]+):([[:print:]]?):$ ]]; then
+        echoerr "That does not match the pattern of 'code:mohs:xcoord:ycoord:replace:' (with replace being optional)"
+        return 2
+    fi
+    if [[ $2 = "code" ]]; then
+        echo "${BASH_REMATCH[1]}"
+        return 0
+    elif [[ $2 = "mohs" ]]; then
+        echo "${BASH_REMATCH[2]}"
+        return 0
+    elif [[ $2 = "x" || $2 = "X" ]]; then
+        echo "${BASH_REMATCH[3]}"
+        return 0
+    elif [[ $2 = "y" || $2 = "Y" ]]; then
+        echo "${BASH_REMATCH[4]}"
+        return 0
+    elif [[ $2 = "replace" ]]; then
+        local -r temp=${BASH_REMATCH[5]:-" "}
+        if [[ ${#temp} -eq 0 ]]; then
+            echo " "
+        else
+            echo "$temp"
+        fi
+        return 0
+    else
+        echoerr "Unrecognized attribute '$2'"
+        return 1
+    fi
+    echo "Bad process for $@"
+    return 2
+}
+
+
+
 
 
 # echo "'$theWalls'"
