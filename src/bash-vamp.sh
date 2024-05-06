@@ -51,6 +51,36 @@ function initWalls {
     return 0
 }
 
+function translateCoordinate {
+    local usageMessage="The first argument must be the maximum x dimension. "
+    usageMessage+="Then specify either 'cartesian' or 'flat' followed by two or one numbers respectively."
+    if [[ $# -lt 3 ]]; then
+        echoerr "$usageMessage"
+        return 1
+    fi
+    if ! [[ $1 =~ ^[[:digit:]]+$ ]]; then
+        echoerr "The maximum x dimension must be a positive integer, not '$1'"
+        return 1
+    fi
+    translateMaxX=$1
+    shift
+
+    if [[ $1 = "cartesian" && $# -ge 3 && $2 =~ ^[[:digit:]]+$ && $3 =~ ^[[:digit:]]+$ ]]; then
+        local -r -i rowOffset=$(( (translateMaxX + 2) * $3 ))
+        local -r -i consolidated=$(( rowOffset + $2 ))
+        echo "$consolidated"
+        return 0
+    elif [[ $1 = "flat" && $# -ge 2 && $2 =~ ^[[:digit:]]+$ ]]; then
+        local -r -i yCoord=$(( $2 / (translateMaxX + 2) ))
+        local -r -i xCoord=$(( $2 % (translateMaxX + 2) ))
+        echo "$xCoord $yCoord"
+        return 0
+    else
+        echoerr "$usageMessage"
+        return 1
+    fi
+}
+
 
 function mohsMap {
     if [[ $# -ne 1 ]]; then

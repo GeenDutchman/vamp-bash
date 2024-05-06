@@ -19,3 +19,13 @@ function test_map_item_generation { # @test
     [ "$status" -eq 0 ]
     [ "$output" = "3x4:10:J: " ]
 }
+
+function test_translate_coordinate { # @test
+    load bash-vamp.sh
+    run translateCoordinate 5 "cartesian" 3 2
+    assert_success
+    assert_output "17"
+    run translateCoordinate 5 "flat" "17"
+    assert_success
+    assert_output "3 2"
+}
