@@ -2,12 +2,13 @@
 
 echoerr() { echo "$@" 1>&2; }
 
+# shellcheck disable=SC2120 # optional parameter
 function randomGenerator {
     local max=100
-    if [[ $# > 0  && "$1" =~ ^0*[1-9][0-9]*$ ]]; then
+    if [[ $# -gt 0  && "$1" =~ ^0*[1-9][0-9]*$ ]]; then
         max=$1
     fi
-    result=$(( ($RANDOM % $max) )) # this will do between 0-99 inclusive
+    result=$(( RANDOM % max )) # this will do between 0-99 inclusive
     echo $result
 }
 
@@ -26,7 +27,7 @@ function initWalls {
                 wally+="█"
             elif [[ $x -eq 0 || $x -eq $mapMaxX ]]; then
                 wally+="█"
-            elif [[ $fill -ge `randomGenerator` ]]; then
+            elif [[ $fill -ge $(randomGenerator) ]]; then
                 wally+="█"
             else
                 wally+=" "
@@ -100,12 +101,12 @@ function makeMapItem {
         replace=$5
     fi
     mapItem="$1:$2:$3:$4:$replace"
-    echo $mapItem
+    echo "$mapItem"
 }
 
 function retriveMapItemAttribute {
     if [[ $# -lt 2 ]]; then
-        echoerr "There must be at least two arguments: mapItem and attribute, not '$@'"
+        echoerr "There must be at least two arguments: mapItem and attribute, not '$*'"
         return 2
     fi
     if ! [[ $1 =~ ^([[:digit:]]+):([[:digit:]]+):([[:digit:]]+):([[:print:]]):([[:print:]]?)$ ]]; then
@@ -136,8 +137,6 @@ function retriveMapItemAttribute {
         echoerr "Unrecognized attribute '$2'"
         return 1
     fi
-    echoerr "Bad process for $@"
-    return 2
 }
 
 
