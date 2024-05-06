@@ -12,15 +12,24 @@ function randomGenerator {
     echo $result
 }
 
-declare -i mapMaxX=50
-declare -i mapMaxY=20
-declare -i fill=20
-declare theWalls=""
 
 function initWalls {
-    local -n wally=$1
-    wally=""
-    echo "Building map of $mapMaxX x $mapMaxY with a fill of $fill"
+    if [[ $# -le 3 ]]; then
+        echoerr "Need arguments of 'mapMaxX', 'mapMaxY', and 'fill'. They all need to be positive integers."
+        return 1
+    fi
+    if ! [[ $1 =~ ^[[:digit:]]+$ && $2 =~ ^[[:digit:]]+$ && $3 =~ ^[[:digit:]]+$ ]]; then
+        echoerr "The arguments for 'mapMaxX', 'mapMaxY', and 'fill' should be positive integers, not '$1', '$2', and '$3'"
+        return 1
+    fi
+    if [[ $# -ge 4 ]]; then
+        local -n wally=$4
+        wally=""
+    else
+        local wally
+        wally=""
+    fi
+    
     for (( y = 0; y <= mapMaxY; y++)); do
         for (( x = 0; x <= mapMaxX; x++ )); do
             if [[ $y -eq 0 || $y -eq $mapMaxY ]]; then
@@ -35,10 +44,12 @@ function initWalls {
         done
         wally+="\n"
     done
-}
-initWalls theWalls
 
-echo -e "$theWalls"
+    if [[ $# -lt 4 ]]; then
+        echo -e "$wally"
+    fi
+    return 0
+}
 
 
 function mohsMap {
@@ -102,6 +113,7 @@ function makeMapItem {
     fi
     mapItem="$1:$2:$3:$4:$replace"
     echo "$mapItem"
+    return 0
 }
 
 function retriveMapItemAttribute {
@@ -140,7 +152,16 @@ function retriveMapItemAttribute {
 }
 
 
+function main() {
+    local -i mapMaxX=50
+    local -i mapMaxY=20
+    local -i fill=20
+    local theWalls=""
 
+    initWalls $mapMaxX $mapMaxY $fill theWalls
+
+    echo -e "$theWalls"
+}
 
 
 # echo "'$theWalls'"
