@@ -17,5 +17,5 @@ function test_map_item_generation { # @test
     [ "$status" -eq 2 ]
     run makeMapItem 3 4 10 J
     [ "$status" -eq 0 ]
-    [ "$output" = "3:4:10:J: " ]
+    [ "$output" = "3x4:10:J: " ]
 }

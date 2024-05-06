@@ -111,7 +111,7 @@ function makeMapItem {
     if [[ $# -ge 5 && ${#5} -eq 1 && $5 =~ ^[[:print:]]$ ]]; then
         replace=$5
     fi
-    mapItem="$1:$2:$3:$4:$replace"
+    mapItem="$1x$2:$3:$4:$replace"
     echo "$mapItem"
     return 0
 }
