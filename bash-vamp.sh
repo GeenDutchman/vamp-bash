@@ -75,27 +75,31 @@ function mohsMap {
 }
 
 function makeMapItem {
-    if [[ $# -lt 3 ]]; then
-        echoerr "There must be at least four arguments: mohs, code, and coordinate"
+    if [[ $# -lt 4 ]]; then
+        echoerr "There must be at least four arguments: xCoordinate, yCoordinate, mohs, and code"
         exit 2
     fi
-    if [[ $1 =~ [^0-9] ]]; then
-        echoerr "The mohs must be a number, not '$1'"
+    if [[ $1 =~ ^[[:digit:]]+$ ]]; then
+        echoerr "The x coordinate must be a number, not '$1'"
         exit 2
     fi
-    if [[ ${#2} -gt 1 ]]; then
-        echoerr "The code must be only one character, not the ${#2} from '$2'"
+    if [[ $2 =~ ^[[:digit:]]+$ ]]; then
+        echoerr "The y coordinate must be a number, not '$2'"
         exit 2
     fi
-    if [[ $3 =~ ^[^0-9]+$ ]]; then
-        echoerr "The coordiante must be a number, not '$3'!"
+    if [[ $3 =~ ^[[:digit:]]+$ ]]; then
+        echoerr "The mohs must be a number, not '$3'"
+        exit 2
+    fi
+    if [[ $4 =~ ^[[:print:]]$ ]]; then
+        echoerr "The code must be only one printable character, not the ${#2} from '$2'"
         exit 2
     fi
     local replace=" "
-    if [[ $# -ge 3 && ${#4} -eq 1 && $4 =~ [:print:] ]]; then
-        replace=$4
+    if [[ $# -ge 5 && ${#5} -eq 1 && $5 =~ ^[[:print:]]$ ]]; then
+        replace=$5
     fi
-    mapItem="$1:$2:$3:$replace:"
+    mapItem="$1:$2:$3:$replace"
     echo $mapItem
 }
 
@@ -105,21 +109,21 @@ function retriveMapItemAttribute {
         return 2
     fi
     echo "item'$1'"
-    if ! [[ $1 =~ ^([[:digit:]]+):([[:alpha:]]):([[:digit:]]+):([[:print:]]?):$ ]]; then
-        echoerr "That does not match the pattern of 'mohs:code:cooridinate:replace:' (with replace being optional)"
+    if ! [[ $1 =~ ^([[:digit:]]+):([[:digit:]]+):([[:digit:]]+):([[:print:]]):([[:print:]]?)$ ]]; then
+        echoerr "That does not match the pattern of 'xCoord:yCoord:mohs:code:replace' (with replace being optional)"
         return 2
     fi
     if [[ $2 = "code" ]]; then
-        echo "${BASH_REMATCH[2]}"
+        echo "${BASH_REMATCH[4]}"
         return 0
     elif [[ $2 = "mohs" ]]; then
-        echo "${BASH_REMATCH[1]}"
-        return 0
-    elif [[ $2 = "x" || $2 = "X" ]]; then
         echo "${BASH_REMATCH[3]}"
         return 0
+    elif [[ $2 = "x" || $2 = "X" ]]; then
+        echo "${BASH_REMATCH[1]}"
+        return 0
     elif [[ $2 = "y" || $2 = "Y" ]]; then
-        echo "${BASH_REMATCH[4]}"
+        echo "${BASH_REMATCH[2]}"
         return 0
     elif [[ $2 = "replace" ]]; then
         local -r temp=${BASH_REMATCH[5]:-" "}
