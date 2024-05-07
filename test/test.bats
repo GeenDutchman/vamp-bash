@@ -40,10 +40,26 @@ function test_draw_map { # @test
     run drawMap "$map" "5" "$entity1" "$entity2"
     assert_success
     assert_output -p "X"
+    assert_output -p "O"
     echo -e "$endMap" | assert_output --stdin
 
     run drawMap "$map" "5" "$entity2" "$entity1"
     assert_success
     assert_output -p "X"
+    assert_output -p "O"
     echo -e "$endMap" | assert_output --stdin
+}
+
+function test_detect_width { # @test
+    load bash-vamp.sh
+    local -r map="█████\n█   █\n█   █\n█   █\n█████"
+    local -r badmap="█████\n██\n██\n██\n█████"
+
+    run detectWidth "$map"
+    assert_success
+    assert_output "5"
+
+    run detectWidth "$badmap"
+    assert_failure 2
+    assert_output -p "Inconsistent"
 }

@@ -81,6 +81,22 @@ function translateCoordinate {
     fi
 }
 
+function detectWidth() {
+    local -t -r toDetect=$1
+    local -t -a split
+    readarray -t split < <(echo -e "$toDetect")
+    local -i width=${#split[0]}
+    for line in "${split[@]}"; do
+        if [[ ${#line} -ne $width ]]; then
+            echoerr "Inconsistent widths in $toDetect"
+            echo $width
+            return 2
+        fi
+    done
+    echo $width
+    return 0
+}
+
 
 function mohsMap {
     if [[ $# -ne 1 ]]; then
