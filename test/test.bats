@@ -212,3 +212,35 @@ function test_make_simple_move_TwoTargetCloseFirst { # @test
     assert_success
     assert_output "$endV1"
 }
+
+function test_check_goal_PlayerMissedGoal { # @test
+    load bash-vamp.sh
+    run checkGoal "1x1:2:#:" "1x2:1:@:"
+    assert_failure 1
+    assert_output ""
+}
+
+function test_check_goal_GoalNotSeekPlayer { # @test 
+    load bash-vamp.sh
+    run checkGoal "1x1:2:@:" "1x1:1:#:"
+    assert_failure 1
+    assert_output ""
+}
+
+function test_check_goal_PlayerGetGoal { # @test
+    load bash-vamp.sh
+    run checkGoal "1x1:2:#:" "1x1:1:@:"
+    assert_success
+    assert_output "#"
+}
+
+function test_check_goal_MonsterGetPlayer { # @test
+    load bash-vamp.sh
+    run checkGoal "1x1:2:V:" "1x1:9:M:" "1x1:1:#:"
+    assert_success
+    assert_output "V"
+
+    run checkGoal "1x1:9:M:" "1x1:2:V:" "1x1:1:#:"
+    assert_success
+    assert_output "M"
+}

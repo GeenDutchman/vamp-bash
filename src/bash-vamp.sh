@@ -192,7 +192,7 @@ function retriveMapItemAttribute {
         fi
         return 0
     else
-        echoerr "Unrecognized attribute '$2'"
+        echoerr "Unrecognized attribute '$2' requested from '$1'"
         return 1
     fi
 }
@@ -365,6 +365,51 @@ function makeSimpleMove() {
         fi
     fi    
 
+}
+
+function checkGoal() {
+    local -r mainEntity=$1
+    shift
+    local -t code
+    code=$( retriveMapItemAttribute "$mainEntity" "code" ) || { echo ""; return 1; }
+
+    if [[ "$code" =~ ^[@█W]$|^[[:space:]]$ ]]; then # only players and monsters care about the goals
+        echo ""
+        return 1
+    fi
+
+    local -i myX
+    local -i myY
+    myX=$( retriveMapItemAttribute "$mainEntity" "x" ) || { echo ""; return 1; }
+    myY=$( retriveMapItemAttribute "$mainEntity" "y" ) || { echo ""; return 1; }
+
+    for other in "$@"; do
+        local -t otherCode
+        otherCode=$( retriveMapItemAttribute "$other" "code" ) || continue;
+        if [[ "$code" = "$otherCode" ]]; then
+            continue;
+        fi
+        local -i otherX
+        local -i otherY
+        otherX=$( retriveMapItemAttribute "$other" "x" ) || continue;
+        otherY=$( retriveMapItemAttribute "$other" "y" ) || continue;
+        case "$code" in
+            "#")
+                if [[ "$otherCode" = "@" && $myX -eq $otherX && $myY -eq $otherY ]]; then
+                    echo "#"
+                    return 0
+                fi
+            ;;
+            "V"|"M")
+                if [[ "$otherCode" = "#" && $myX -eq $otherX && $myY -eq $otherY ]]; then
+                    echo "$code"
+                    return 0
+                fi
+            ;;
+        esac
+    done
+    echo ""
+    return 1
 }
 
 
