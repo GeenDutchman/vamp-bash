@@ -235,6 +235,55 @@ function drawMap() {
     echo -e "$drawn"
 }
 
+function moveEntity() {
+    if [[ $# -lt 2 ]]; then
+        echoerr "Expecting the string of the map, the entity to move, and the x and y of the destination"
+        return 1
+    fi
+    local -t -r mapSource=$1
+    mapWidth=$(detectWidth "$mapSource") || return $?
+    shift
+    local -t entity=$1
+    shift
+    local -t -i -r nextX=$1
+    shift
+    local -t -i -r nextY=$1
+
+    local -t -i entityX
+    entityX=$( retriveMapItemAttribute "$entity" "x" ) || return $?
+    local -t -i entityY
+    entityY=$( retriveMapItemAttribute "$entity" "y" ) || return $?
+    local -t -i flat
+    flat=$( translateCoordinate "$mapWidth" "toFlat" "$entityX" "$entityY" ) || return $?
+    local -t code
+    code=$( retriveMapItemAttribute "$entity" "code" ) || return $?
+    local -t -i entityMohs
+    entityMohs=$( retriveMapItemAttribute "$entity" "mohs" ) || return $?
+
+
+    local -t -i dest
+    dest=$( translateCoordinate "$mapWidth" "toFlat" "$nextX" "$nextY" ) || return $?
+    local -t -i -r destMohs=$( mohsMap "$dest" )
+
+    if [[ $destMohs -ge $entityMohs ]]; then
+        echo "$entity"
+        return 2 # could not move there
+    fi
+
+    local -t replacement
+    replacement=$( retriveMapItemAttribute "$entity" "replace" ) || return $?
+    local -t -i -r replaceMohs=$( mohsMap "$replacement" )
+
+    local -r charThere=${mapSource:$flat:1}
+
+    echo "${entity/${entityX}x${entityY}/${nextX}x${nextY}}"
+    if [[ "$code" = "$charThere" ]]; then
+        replacedItem=$(makeMapItem $entityX $entityY $replaceMohs "$replacement") || return $?
+        echo "$replacedItem"
+    fi
+    return 0
+}
+
 
 function main() {
     local -i mapMaxX=50

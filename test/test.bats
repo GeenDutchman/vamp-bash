@@ -20,6 +20,22 @@ function test_map_item_generation { # @test
     [ "$output" = "3x4:10:J: " ]
 }
 
+function test_map_item_attribute { # @test
+    load bash-vamp.sh
+    local -r item="1x2:10:M:W"
+    run retriveMapItemAttribute "$item" "x"
+    assert_output "1"
+    run retriveMapItemAttribute "$item" "y"
+    assert_output "2"
+    run retriveMapItemAttribute "$item" "mohs"
+    assert_output "10"
+    run retriveMapItemAttribute "$item" "code"
+    assert_output "M"
+    run retriveMapItemAttribute "$item" "replace"
+    assert_output "W"
+
+}
+
 function test_translate_coordinate { # @test
     load bash-vamp.sh
     run translateCoordinate 5 "toFlat" 3 2
@@ -62,4 +78,22 @@ function test_detect_width { # @test
     run detectWidth "$badmap"
     assert_failure 2
     assert_output -p "Inconsistent"
+}
+
+function test_move_entity { # @test
+    load bash-vamp.sh
+    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
+    local -r map="█████\n█ M █\n█   █\n█   █\n█████"
+    local -r preentity="2x1:9:M:W"
+    local -r postentities="2x2:9:M:W\n2x1:8:W: "
+    local -r postmap="█████\n█ W █\n█ M █\n█   █\n█████"
+
+    run moveEntity "$map" "$preentity" 2 2
+    assert_success
+    echo -e "$postentities" | assert_output --stdin
+
+    run drawMap "$walls" 5 "$preentity"
+    echo -e "$map" | assert_output --stdin
+    run drawMap "$map" 5 $(echo -e "$postentities")
+    echo -e "$postmap" | assert_output --stdin
 }
