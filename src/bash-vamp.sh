@@ -53,7 +53,7 @@ function initWalls {
 
 function translateCoordinate {
     local usageMessage="The first argument must be the maximum x dimension. "
-    usageMessage+="Then specify either 'cartesian' or 'flat' followed by two or one numbers respectively."
+    usageMessage+="Then specify either 'toFlat' or 'toCartesian' followed by two or one numbers respectively."
     if [[ $# -lt 3 ]]; then
         echoerr "$usageMessage"
         return 1
@@ -65,12 +65,12 @@ function translateCoordinate {
     translateMaxX=$1
     shift
 
-    if [[ $1 = "cartesian" && $# -ge 3 && $2 =~ ^[[:digit:]]+$ && $3 =~ ^[[:digit:]]+$ ]]; then
+    if [[ $1 = "toFlat" && $# -ge 3 && $2 =~ ^[[:digit:]]+$ && $3 =~ ^[[:digit:]]+$ ]]; then
         local -r -i rowOffset=$(( (translateMaxX + 2) * $3 ))
         local -r -i consolidated=$(( rowOffset + $2 ))
         echo "$consolidated"
         return 0
-    elif [[ $1 = "flat" && $# -ge 2 && $2 =~ ^[[:digit:]]+$ ]]; then
+    elif [[ $1 = "toCartesian" && $# -ge 2 && $2 =~ ^[[:digit:]]+$ ]]; then
         local -r -i yCoord=$(( $2 / (translateMaxX + 2) ))
         local -r -i xCoord=$(( $2 % (translateMaxX + 2) ))
         echo "$xCoord $yCoord"
@@ -151,8 +151,8 @@ function retriveMapItemAttribute {
         echoerr "There must be at least two arguments: mapItem and attribute, not '$*'"
         return 2
     fi
-    if ! [[ $1 =~ ^([[:digit:]]+):([[:digit:]]+):([[:digit:]]+):([[:print:]]):([[:print:]]?)$ ]]; then
-        echoerr "That does not match the pattern of 'xCoord:yCoord:mohs:code:replace' (with replace being optional)"
+    if ! [[ $1 =~ ^([[:digit:]]+)x([[:digit:]]+):([[:digit:]]+):([[:print:]]):([[:print:]]?)$ ]]; then
+        echoerr "That '$1' does not match the pattern of 'xCoord:yCoord:mohs:code:replace' (with replace being optional)"
         return 2
     fi
     if [[ $2 = "code" ]]; then
@@ -179,6 +179,44 @@ function retriveMapItemAttribute {
         echoerr "Unrecognized attribute '$2'"
         return 1
     fi
+}
+
+function drawMap() {
+    if [[ $# -lt 2 ]]; then
+        echoerr "Expecting the string of the map, the width of the map, and the set of entities to draw"
+        return 1
+    fi
+    local -r mapSource=$1
+    shift
+    if ! [[ $1 =~ ^[[:digit:]]+$ ]]; then
+        echoerr "The width of the map must be a number"
+        return 1
+    fi
+    local -r -i mapWidth=$1
+    shift
+
+    local drawn=""
+    for entity in "$@"; do
+        entityX=$( retriveMapItemAttribute "$entity" "x" ) || return $?
+        entityY=$( retriveMapItemAttribute "$entity" "y" ) || return $?
+        flat=$( translateCoordinate $mapWidth "toFlat" "$entityX" "$entityY" ) || return $?
+        code=$( retriveMapItemAttribute "$entity" "code" ) || return $?
+
+
+        if [[ $flat -lt ${#drawn} ]]; then
+            drawn=${drawn:0:$flat}${code}${drawn:$flat+1} # replace
+        else
+            drawLen=${#drawn}
+            drawn+=${mapSource:$drawLen:$flat-$drawLen}${code}
+        fi
+        
+    done
+
+    if [[ ${#drawn} -lt ${#mapSource} ]]; then
+        drawn+=${mapSource:${#drawn}:${#mapSource}-${#drawn}}
+    fi
+
+    echo -e "$drawn"
 }
 
 
