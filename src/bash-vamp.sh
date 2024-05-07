@@ -284,6 +284,89 @@ function moveEntity() {
     return 0
 }
 
+function makeSimpleMove() {
+    local -r mappy=$1
+    shift
+    local entity=$1
+    shift
+    local -i myX
+    local -i myY
+    myX=$( retriveMapItemAttribute "$entity" "x" ) || return $?
+    myY=$( retriveMapItemAttribute "$entity" "y" ) || return $?
+
+    if [[ $# -lt 1 ]]; then
+        echo "$entity"
+        return 0
+    fi
+    local -t targetEntity=""
+    local -t -i targetDist=-1
+    local -i targetX=-1
+    local -i targetY=-1
+
+    for checkTarget in "$@"; do
+        local -i checkX
+        local -i checkY
+        local -i checkDist
+        checkX=$( retriveMapItemAttribute "$checkTarget" "x" ) || continue;
+        checkY=$( retriveMapItemAttribute "$checkTarget" "y" ) || continue;
+        checkDist=$(( (checkX - myX)**2 + (checkY - myY)**2 )) # how far is it from the entity
+        if [[ $targetDist -lt 0 || $checkDist -lt $targetDist ]]; then
+            targetEntity="$checkTarget"
+            targetDist=$checkDist
+            targetX=$checkX
+            targetY=$checkY
+            if [[ $targetDist -eq 0 ]]; then
+                break; # can't get much closer than 0
+            fi
+        fi
+    done
+
+    if [[ "$targetEntity" = "" || $targetDist -le 0 ]]; then
+        echo "$entity"
+        return 0
+    fi
+
+    local -i -r xDiff=$(( targetX - myX ))
+    local -i -r yDiff=$(( targetY - myY ))
+
+    if [[ $yDiff -eq 0 ]]; then
+        if [[ $xDiff -gt 0 ]]; then
+            moveEntity "$mappy" "$entity" $(( myX + 1 )) "$myY"
+            return $?
+        else # should not need an -eq 0 case
+            moveEntity "$mappy" "$entity" $(( myX - 1 )) "$myY"
+            return $?
+        fi
+    elif [[ $xDiff -eq 0 ]]; then
+        if [[ $yDiff -gt 0 ]]; then
+            moveEntity "$mappy" "$entity" "$myX" $(( myY + 1 ))
+            return $?
+        else # should not need an -eq 0 case
+            moveEntity "$mappy" "$entity" "$myX" $(( myY - 1 ))
+            return $?
+        fi
+    else
+        if [[ 0 -eq $( randomGenerator 2 ) ]]; then
+                    if [[ $xDiff -gt 0 ]]; then
+                moveEntity "$mappy" "$entity" $(( myX + 1 )) "$myY"
+                return $?
+            else # should not need an -eq 0 case
+                moveEntity "$mappy" "$entity" $(( myX - 1 )) "$myY"
+                return $?
+            fi
+        else
+            if [[ $yDiff -gt 0 ]]; then
+                moveEntity "$mappy" "$entity" "$myX" $(( myY + 1 ))
+                return $?
+            else # should not need an -eq 0 case
+                moveEntity "$mappy" "$entity" "$myX" $(( myY - 1 ))
+                return $?
+            fi
+        fi
+    fi    
+
+}
+
 
 function main() {
     local -i mapMaxX=50

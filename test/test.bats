@@ -97,3 +97,82 @@ function test_move_entity { # @test
     run drawMap "$map" 5 $(echo -e "$postentities")
     echo -e "$postmap" | assert_output --stdin
 }
+
+function test_make_simple_move_VertDown { # @test
+    load bash-vamp.sh
+    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
+    local -r startV1="1x1:3:V:"
+    local -r startP1="1x3:2:#:"
+    local -r endV1="1x2:3:V:"
+    run drawMap "$walls" 5 "$startV1" "$startP1"
+    assert_success
+    assert_output -p "V"
+    assert_output -p "#"
+    local -r printed1="$output"
+    run makeSimpleMove "$printed1" "$startV1" "$startP1"
+    assert_success
+    assert_output "$endV1"
+}
+
+function test_make_simple_move_VertUp { # @test
+    load bash-vamp.sh
+    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
+    local -r startV1="1x3:3:V:"
+    local -r startP1="1x1:2:#:"
+    local -r endV1="1x2:3:V:"
+    run drawMap "$walls" 5 "$startV1" "$startP1"
+    assert_success
+    assert_output -p "V"
+    assert_output -p "#"
+    local -r printed1="$output"
+    run makeSimpleMove "$printed1" "$startV1" "$startP1"
+    assert_success
+    assert_output "$endV1"
+}
+
+function test_make_simple_move_HorzLeft { # @test
+    load bash-vamp.sh
+    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
+    local -r startV1="1x1:3:V:"
+    local -r startP1="3x1:2:#:"
+    local -r endV1="2x1:3:V:"
+    run drawMap "$walls" 5 "$startV1" "$startP1"
+    assert_success
+    assert_output -p "V"
+    assert_output -p "#"
+    local -r printed1="$output"
+    run makeSimpleMove "$printed1" "$startV1" "$startP1"
+    assert_success
+    assert_output "$endV1"
+}
+
+function test_make_simple_move_HorzRight { # @test
+    load bash-vamp.sh
+    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
+    local -r startV1="3x1:3:V:"
+    local -r startP1="1x1:2:#:"
+    local -r endV1="2x1:3:V:"
+    run drawMap "$walls" 5 "$startV1" "$startP1"
+    assert_success
+    assert_output -p "V"
+    assert_output -p "#"
+    local -r printed1="$output"
+    run makeSimpleMove "$printed1" "$startV1" "$startP1"
+    assert_success
+    assert_output "$endV1"
+}
+
+function test_make_simple_move_Diag { # @test
+    load bash-vamp.sh
+    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
+    local -r startV1="1x1:3:V:"
+    local -r startP1="3x3:2:#:"
+    run drawMap "$walls" 5 "$startV1" "$startP1"
+    assert_success
+    assert_output -p "V"
+    assert_output -p "#"
+    local -r printed1="$output"
+    run makeSimpleMove "$printed1" "$startV1" "$startP1"
+    assert_success
+    assert_output --regexp '^(1x2:3:V:)|(2x1:3:V:)$'
+}
