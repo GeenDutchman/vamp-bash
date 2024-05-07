@@ -176,3 +176,39 @@ function test_make_simple_move_Diag { # @test
     assert_success
     assert_output --regexp '^(1x2:3:V:)|(2x1:3:V:)$'
 }
+
+function test_make_simple_move_TwoTargetCloseLast { # @test
+    load bash-vamp.sh
+    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
+    local -r startV1="1x1:3:V:"
+    local -r startP1="1x3:2:#:"
+    local -r startZ1="2x1:3:Z:"
+    local -r endV1="2x1:3:V:"
+    run drawMap "$walls" 5 "$startV1" "$startP1" "$startZ1"
+    assert_success
+    assert_output -p "V"
+    assert_output -p "#"
+    assert_output -p "Z"
+    local -r printed1="$output"
+    run makeSimpleMove "$printed1" "$startV1" "$startP1" "$startZ1"
+    assert_success
+    assert_output "$endV1"
+}
+
+function test_make_simple_move_TwoTargetCloseFirst { # @test
+    load bash-vamp.sh
+    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
+    local -r startV1="1x1:3:V:"
+    local -r startP1="1x3:2:#:"
+    local -r startZ1="2x1:3:Z:"
+    local -r endV1="2x1:3:V:"
+    run drawMap "$walls" 5 "$startV1" "$startZ1" "$startP1"
+    assert_success
+    assert_output -p "V"
+    assert_output -p "#"
+    assert_output -p "Z"
+    local -r printed1="$output"
+    run makeSimpleMove "$printed1" "$startV1" "$startZ1" "$startP1"
+    assert_success
+    assert_output "$endV1"
+}
