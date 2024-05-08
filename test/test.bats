@@ -22,8 +22,9 @@ function test_map_item_generation { # @test
     [ "$output" = "3x4:10:J: " ]
 }
 
+# bats test_tags=bats:focus
 function test_init_walls { # @test
-    local -r map=$'█████\n█   █\n█   █\n█   █\n█████'
+    local -r map="ENTITIES:MAZE_META:5x5yMAZE:█,█,█,█,█,:█,,,,█,:█,,,,█,:█,,,,█,:█,█,█,█,█,:"
     run initWalls 5 5 0
     assert_success
     echo -e "$map" | assert_output --stdin
@@ -49,8 +50,8 @@ function test_translate_coordinate { # @test
     
     run translateCoordinate 5 "toFlat" 3 2
     assert_success
-    assert_output "17"
-    run translateCoordinate 5 "toCartesian" "17"
+    assert_output "15"
+    run translateCoordinate 5 "toCartesian" "15"
     assert_success
     assert_output "3 2"
 }

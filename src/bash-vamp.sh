@@ -13,6 +13,11 @@ function randomGenerator {
     echo $result
 }
 
+declare -r ENTITY_MATCHER='[[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM]'
+declare -r MAP_ENTRY='█|@?#?V?W?M?'
+declare MAP_ROW; MAP_ROW=$( printf "(%s,)+:" "$MAP_ENTRY" ); declare -r MAP_ROW;
+declare MAP_STATE_MATCHER; MAP_STATE_MATCHER=$( printf "^ENTITIES:(%s,)+MAZE_META:([[:digit:]]+x[[:digit:]]+y)MAZE:(%s)+$" "$ENTITY_MATCHER" "$MAP_ROW" ); declare -r MAP_STATE_MATCHER;
+
 
 function initWalls {
     if [[ $# -lt 3 ]]; then
@@ -30,27 +35,33 @@ function initWalls {
 
     if [[ $# -ge 4 ]]; then
         local -n wally=$4
-        wally=""
+        wally="ENTITIES:MAZE_META:${mapMaxX}x${mapMaxY}yMAZE:"
     else
         local wally
-        wally=""
+        wally="ENTITIES:MAZE_META:${mapMaxX}x${mapMaxY}yMAZE:"
     fi
     
     local -i y; local -i x;
     for (( y = 0; y < mapMaxY; y++)); do
         for (( x = 0; x < mapMaxX; x++ )); do
             if [[ $y -eq 0 || $y -eq $(( mapMaxY - 1 )) ]]; then
-                wally+="█"
+                wally+="█,"
             elif [[ $x -eq 0 || $x -eq $(( mapMaxX - 1 )) ]]; then
-                wally+="█"
+                wally+="█,"
             elif [[ $(randomGenerator) -lt $fill ]]; then
-                wally+="█"
+                wally+="█,"
             else
-                wally+=" "
+                wally+=","
             fi
         done
-        wally+=$'\n'
+        wally+=":"
     done
+
+    if ! [[ "$wally" =~ $MAP_STATE_MATCHER ]]; then
+        echo -e "$wally"
+        echoerr "Does not match the state"
+        return 1
+    fi
 
     if [[ $# -lt 4 ]]; then
         echo -e "$wally"
@@ -73,13 +84,13 @@ function translateCoordinate {
     shift
 
     if [[ $1 = "toFlat" && $# -ge 3 && $2 =~ ^[[:digit:]]+$ && $3 =~ ^[[:digit:]]+$ ]]; then
-        local -r -i rowOffset=$(( (translateMaxX + 2) * $3 ))
+        local -r -i rowOffset=$(( (translateMaxX + 1) * $3 ))
         local -r -i consolidated=$(( rowOffset + $2 ))
         echo "$consolidated"
         return 0
     elif [[ $1 = "toCartesian" && $# -ge 2 && $2 =~ ^[[:digit:]]+$ ]]; then
-        local -r -i yCoord=$(( $2 / (translateMaxX + 2) ))
-        local -r -i xCoord=$(( $2 % (translateMaxX + 2) ))
+        local -r -i yCoord=$(( $2 / (translateMaxX + 1) ))
+        local -r -i xCoord=$(( $2 % (translateMaxX + 1) ))
         echo "$xCoord $yCoord"
         return 0
     else
