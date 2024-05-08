@@ -289,8 +289,10 @@ function makeSimpleMove() {
     shift
     local entity=$1
     shift
+    local -t myCode
     local -i myX
     local -i myY
+    myCode=$( retriveMapItemAttribute "$entity" "code" ) || return $?
     myX=$( retriveMapItemAttribute "$entity" "x" ) || return $?
     myY=$( retriveMapItemAttribute "$entity" "y" ) || return $?
 
@@ -304,6 +306,18 @@ function makeSimpleMove() {
     local -i targetY=-1
 
     for checkTarget in "$@"; do
+        local -t checkCode
+        checkCode=$( retriveMapItemAttribute "$checkTarget" "code" ) || continue;
+        if [[ "$myCode" = "$checkCode" ]]; then
+            continue;
+        elif [[ "$myCode" =~ ^[@█W]$|^[[:space:]]$ ]]; then
+            echo "$entity"
+            return 1
+        elif [[ "$myCode" = "#" && "$checkCode" != "@" ]]; then
+            continue
+        elif [[ "$myCode" =~ ^[VM]$ && "$checkCode" != "#" ]]; then
+            continue
+        fi
         local -i checkX
         local -i checkY
         local -i checkDist
