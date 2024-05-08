@@ -14,7 +14,7 @@
             "presentation": {
                 "reveal": "always",
                 "panel": "dedicated",
-                "showReuseMessage": false,
+                "showReuseMessage": true,
                 "clear": true
             },
             "problemMatcher": {

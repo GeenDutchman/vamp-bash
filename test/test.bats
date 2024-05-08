@@ -1,6 +1,7 @@
 #!/usr/bin/env bats
 
 setup() {
+    bats_require_minimum_version 1.5.0
     load 'test_helper/bats-support/load'
     load 'test_helper/bats-assert/load'
     # get the containing directory of this file
@@ -9,10 +10,11 @@ setup() {
     PROJECT_ROOT="$( cd "$( dirname "$BATS_TEST_FILENAME" )/.." >/dev/null 2>&1 && pwd )"
     # make executables in src/ visible to PATH
     PATH="$PROJECT_ROOT/src:$PATH"
+    load bash-vamp.sh
 }
 
 function test_map_item_generation { # @test
-    load bash-vamp.sh
+    
     run makeMapItem "zoo"
     [ "$status" -eq 2 ]
     run makeMapItem 3 4 10 J
@@ -21,7 +23,7 @@ function test_map_item_generation { # @test
 }
 
 function test_map_item_attribute { # @test
-    load bash-vamp.sh
+    
     local -r item="1x2:10:M:W"
     run retriveMapItemAttribute "$item" "x"
     assert_output "1"
@@ -37,7 +39,7 @@ function test_map_item_attribute { # @test
 }
 
 function test_translate_coordinate { # @test
-    load bash-vamp.sh
+    
     run translateCoordinate 5 "toFlat" 3 2
     assert_success
     assert_output "17"
@@ -47,27 +49,53 @@ function test_translate_coordinate { # @test
 }
 
 function test_draw_map { # @test
-    load bash-vamp.sh
+    
     local -r map="█████\n█   █\n█   █\n█   █\n█████"
     local -r entity1="1x1:1:X:"
     local -r entity2="2x2:1:O:"
     local -r endMap="█████\n█X  █\n█ O █\n█   █\n█████"
 
-    run drawMap "$map" "5" "$entity1" "$entity2"
+    run --separate-stderr drawMap "$map" "5" "$entity1" "$entity2"
     assert_success
     assert_output -p "X"
     assert_output -p "O"
     echo -e "$endMap" | assert_output --stdin
 
-    run drawMap "$map" "5" "$entity2" "$entity1"
+    run --separate-stderr drawMap "$map" "5" "$entity2" "$entity1"
     assert_success
     assert_output -p "X"
     assert_output -p "O"
     echo -e "$endMap" | assert_output --stdin
 }
 
+# bats test_tags=bats:focus
+function test_draw_map_Redraw { # @test
+
+    local -r map="█████\n█   █\n█   █\n█   █\n█████"
+    local -r entity1="1x1:1:X:"
+    local -r midMap="█████\n█X  █\n█   █\n█   █\n█████"
+    local -r entity2="2x2:1:O:"
+    local -r endMap="█████\n█X  █\n█ O █\n█   █\n█████"
+    
+    echo "Map length is ${#map}"
+    run --separate-stderr drawMap "$map" "5" "$entity1"
+    echoerr -e "First error was:\n${stderr?}"
+    assert_success
+    assert_output -p "X"
+    echo "First output length was ${#output}"
+    echo -e "$midMap" | assert_output --stdin
+    run --separate-stderr drawMap "$output" "5" "$entity1" "$entity2"
+    echoerr -e "Second error was:\n${stderr?}"
+    assert_success
+    assert_output -p "X"
+    assert_output -p "O"
+    echo "End map length is ${#endMap}"
+    echo "Second output length was ${#output}"
+    echo -e "$endMap" | assert_output --stdin
+}
+
 function test_detect_width { # @test
-    load bash-vamp.sh
+    
     local -r map="█████\n█   █\n█   █\n█   █\n█████"
     local -r badmap="█████\n██\n██\n██\n█████"
 
@@ -78,10 +106,14 @@ function test_detect_width { # @test
     run detectWidth "$badmap"
     assert_failure 2
     assert_output -p "Inconsistent"
+
+    run detectWidth "█"
+    assert_success
+    assert_output "1"
 }
 
 function test_move_entity { # @test
-    load bash-vamp.sh
+    
     local -r walls="█████\n█   █\n█   █\n█   █\n█████"
     local -r map="█████\n█ M █\n█   █\n█   █\n█████"
     local -r preentity="2x1:9:M:W"
@@ -99,7 +131,7 @@ function test_move_entity { # @test
 }
 
 function test_make_simple_move_VertDown { # @test
-    load bash-vamp.sh
+    
     local -r walls="█████\n█   █\n█   █\n█   █\n█████"
     local -r startV1="1x1:3:V:"
     local -r startP1="1x3:2:#:"
@@ -115,7 +147,7 @@ function test_make_simple_move_VertDown { # @test
 }
 
 function test_make_simple_move_VertUp { # @test
-    load bash-vamp.sh
+    
     local -r walls="█████\n█   █\n█   █\n█   █\n█████"
     local -r startV1="1x3:3:V:"
     local -r startP1="1x1:2:#:"
@@ -131,7 +163,7 @@ function test_make_simple_move_VertUp { # @test
 }
 
 function test_make_simple_move_HorzLeft { # @test
-    load bash-vamp.sh
+    
     local -r walls="█████\n█   █\n█   █\n█   █\n█████"
     local -r startV1="1x1:3:V:"
     local -r startP1="3x1:2:#:"
@@ -147,7 +179,7 @@ function test_make_simple_move_HorzLeft { # @test
 }
 
 function test_make_simple_move_HorzRight { # @test
-    load bash-vamp.sh
+    
     local -r walls="█████\n█   █\n█   █\n█   █\n█████"
     local -r startV1="3x1:3:V:"
     local -r startP1="1x1:2:#:"
@@ -163,7 +195,7 @@ function test_make_simple_move_HorzRight { # @test
 }
 
 function test_make_simple_move_Diag { # @test
-    load bash-vamp.sh
+    
     local -r walls="█████\n█   █\n█   █\n█   █\n█████"
     local -r startV1="1x1:3:V:"
     local -r startP1="3x3:2:#:"
@@ -178,7 +210,7 @@ function test_make_simple_move_Diag { # @test
 }
 
 function test_make_simple_move_TwoTargetCloseLast { # @test
-    load bash-vamp.sh
+    
     local -r walls="█████\n█   █\n█   █\n█   █\n█████"
     local -r startV1="1x1:3:V:"
     local -r startP1="1x3:2:#:"
@@ -195,7 +227,7 @@ function test_make_simple_move_TwoTargetCloseLast { # @test
 }
 
 function test_make_simple_move_TwoTargetCloseFirst { # @test
-    load bash-vamp.sh
+    
     local -r walls="█████\n█   █\n█   █\n█   █\n█████"
     local -r startV1="1x1:3:V:"
     local -r startP1="1x3:2:#:"
@@ -212,7 +244,7 @@ function test_make_simple_move_TwoTargetCloseFirst { # @test
 }
 
 function test_make_simple_move_IgnoreDistractions { # @test
-    load bash-vamp.sh
+    
     local -r walls="█████\n█   █\n█   █\n█   █\n█████"
     local -r startV1="1x1:3:V:"
     local -r startP1="1x3:2:#:"
@@ -230,28 +262,28 @@ function test_make_simple_move_IgnoreDistractions { # @test
 }
 
 function test_check_goal_PlayerMissedGoal { # @test
-    load bash-vamp.sh
+    
     run checkGoal "1x1:2:#:" "1x2:1:@:"
     assert_failure 1
     assert_output ""
 }
 
 function test_check_goal_GoalNotSeekPlayer { # @test 
-    load bash-vamp.sh
+    
     run checkGoal "1x1:2:@:" "1x1:1:#:"
     assert_failure 1
     assert_output ""
 }
 
 function test_check_goal_PlayerGetGoal { # @test
-    load bash-vamp.sh
+    
     run checkGoal "1x1:2:#:" "1x1:1:@:"
     assert_success
     assert_output "#"
 }
 
 function test_check_goal_MonsterGetPlayer { # @test
-    load bash-vamp.sh
+    
     run checkGoal "1x1:2:V:" "1x1:9:M:" "1x1:1:#:"
     assert_success
     assert_output "V"
@@ -259,4 +291,27 @@ function test_check_goal_MonsterGetPlayer { # @test
     run checkGoal "1x1:9:M:" "1x1:2:V:" "1x1:1:#:"
     assert_success
     assert_output "M"
+}
+
+function test_make_entity_set { # @test
+    
+    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
+
+    run --separate-stderr makeEntitySet "$walls" 1 5 5
+    echoerr -e "Output was \n$output\nStderr was \n$stderr"
+    assert_output -p "@"
+    assert_output -p "#"
+    assert_output -p "V"
+    assert_success
+    run --separate-stderr drawMap "$walls" 5 $output
+    assert_output -p "@"
+    assert_output -p "#"
+    assert_output -p "V"
+    assert_success
+    echoerr -e "Output was \n$output"
+    [ 2 -eq 0 ]
+
+    run makeEntitySet "█" 1 1 1
+    assert_failure
+    assert_output -p "Could not place"
 }

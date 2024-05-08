@@ -8,6 +8,7 @@ function randomGenerator {
     if [[ $# -gt 0  && "$1" =~ ^0*[1-9][0-9]*$ ]]; then
         max=$1
     fi
+    local result
     result=$(( RANDOM % max )) # this will do between 0-99 inclusive
     echo $result
 }
@@ -62,7 +63,7 @@ function translateCoordinate {
         echoerr "The maximum x dimension must be a positive integer, not '$1'"
         return 1
     fi
-    translateMaxX=$1
+    local -i translateMaxX=$1
     shift
 
     if [[ $1 = "toFlat" && $# -ge 3 && $2 =~ ^[[:digit:]]+$ && $3 =~ ^[[:digit:]]+$ ]]; then
@@ -88,7 +89,7 @@ function detectWidth() {
     local -i width=${#split[0]}
     for line in "${split[@]}"; do
         if [[ ${#line} -ne $width ]]; then
-            echoerr "Inconsistent widths in $toDetect"
+            echoerr -e "Inconsistent widths in \n$toDetect"
             echo $width
             return 2
         fi
@@ -211,18 +212,19 @@ function drawMap() {
     local -r -i mapWidth=$1
     shift
 
-    local drawn=""
+    local -t drawn=""
+    local -t entity
     for entity in "$@"; do
+        local -i entityX; local -i entityY; local -i flat; local code;
         entityX=$( retriveMapItemAttribute "$entity" "x" ) || return $?
         entityY=$( retriveMapItemAttribute "$entity" "y" ) || return $?
         flat=$( translateCoordinate $mapWidth "toFlat" "$entityX" "$entityY" ) || return $?
         code=$( retriveMapItemAttribute "$entity" "code" ) || return $?
 
-
-        if [[ $flat -lt ${#drawn} ]]; then
+        local -i drawLen=${#drawn}
+        if [[ $flat -lt $drawLen ]]; then
             drawn=${drawn:0:$flat}${code}${drawn:$flat+1} # replace
         else
-            drawLen=${#drawn}
             drawn+=${mapSource:$drawLen:$flat-$drawLen}${code}
         fi
         
@@ -263,8 +265,13 @@ function moveEntity() {
 
     local -t -i dest
     dest=$( translateCoordinate "$mapWidth" "toFlat" "$nextX" "$nextY" ) || return $?
-    local -t -i -r destMohs=$( mohsMap "$dest" )
+    if [[ $dest -ge ${#mapSource} ]]; then
+        echoerr "The destination ( '$nextX','$nextY' or '$dest' ) for the entity '$entity' is out of bounds '${#mapSource}' for '$mapSource'"
+        echo "$entity"
+        return 2
+    fi
 
+    local -t -i -r destMohs=$( mohsMap "$dest" )
     if [[ $destMohs -ge $entityMohs ]]; then
         echo "$entity"
         return 2 # could not move there
@@ -424,6 +431,64 @@ function checkGoal() {
     done
     echo ""
     return 1
+}
+
+function makeEntitySet() {
+    local -t map=$1
+    local -i -r forLevel=$( [ "$2" -ge 0 ] && echo "$2" || echo "1" )
+    local -i -r mapMaxX=$3
+    local -i -r mapMaxY=$4
+
+    local -a entities=()
+
+
+    function randomDraw() {
+        local -n myMap=map
+        local -i -r mohs=$1
+        local -r code=$2
+        local -r replace=$( [[ $# -ge 3 && "$3" =~ ^[[:print:]]$ ]] && echo "$3" || echo " " )
+        local -i drawn=1
+        for (( drawn=7 ; drawn > 0; drawn-- )); do
+            local -i randX; local -i randY;
+            randX=$( randomGenerator $(( mapMaxX - 2 )) )+1
+            randY=$( randomGenerator $(( mapMaxY - 2 )) )+1
+            local entity
+            entity=$( makeMapItem "$randX" "$randY" "$mohs" "$code" "$replace" )
+            
+            if entity=$( moveEntity "$map" "$entity" "$randX" "$randY" ); then
+                entities+=("$entity")
+                myMap=$( drawMap "$map" "$mapMaxX" "${entities[@]}" )
+                break
+            fi
+        done
+        if [[ $drawn -le 0 ]]; then
+            echoerr "Could not place $code on the map:"
+            echoerr -e "$myMap"
+            return 1
+        fi
+    }
+
+    for ((mum=(forLevel / 5); mum > 0; mum--)); do
+        randomDraw 9 "M" "W"
+    done
+
+    for ((vee=forLevel; vee > 0; vee--)); do
+        randomDraw 3 "V"
+    done
+
+    if ! randomDraw 2 "#"; then
+        echoerr "${entities[@]}"
+        exit 2
+    fi
+
+    if ! randomDraw 1 "@"; then
+        echoerr "${entities[@]}"
+        exit 2
+    fi
+
+
+    echo "${entities[@]}"
+    return 0
 }
 
 
