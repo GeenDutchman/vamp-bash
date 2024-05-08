@@ -15,7 +15,7 @@ function randomGenerator {
 
 
 function initWalls {
-    if [[ $# -le 3 ]]; then
+    if [[ $# -lt 3 ]]; then
         echoerr "Need arguments of 'mapMaxX', 'mapMaxY', and 'fill'. They all need to be positive integers."
         return 1
     fi
@@ -23,6 +23,11 @@ function initWalls {
         echoerr "The arguments for 'mapMaxX', 'mapMaxY', and 'fill' should be positive integers, not '$1', '$2', and '$3'"
         return 1
     fi
+
+    local -i -t -r mapMaxX=$1
+    local -i -t -r mapMaxY=$2
+    local -i -t -r fill=$3
+
     if [[ $# -ge 4 ]]; then
         local -n wally=$4
         wally=""
@@ -31,19 +36,20 @@ function initWalls {
         wally=""
     fi
     
-    for (( y = 0; y <= mapMaxY; y++)); do
-        for (( x = 0; x <= mapMaxX; x++ )); do
-            if [[ $y -eq 0 || $y -eq $mapMaxY ]]; then
+    local -i y; local -i x;
+    for (( y = 0; y < mapMaxY; y++)); do
+        for (( x = 0; x < mapMaxX; x++ )); do
+            if [[ $y -eq 0 || $y -eq $(( mapMaxY - 1 )) ]]; then
                 wally+="█"
-            elif [[ $x -eq 0 || $x -eq $mapMaxX ]]; then
+            elif [[ $x -eq 0 || $x -eq $(( mapMaxX - 1 )) ]]; then
                 wally+="█"
-            elif [[ $fill -ge $(randomGenerator) ]]; then
+            elif [[ $(randomGenerator) -lt $fill ]]; then
                 wally+="█"
             else
                 wally+=" "
             fi
         done
-        wally+="\n"
+        wally+=$'\n'
     done
 
     if [[ $# -lt 4 ]]; then

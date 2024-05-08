@@ -22,6 +22,13 @@ function test_map_item_generation { # @test
     [ "$output" = "3x4:10:J: " ]
 }
 
+function test_init_walls { # @test
+    local -r map=$'█████\n█   █\n█   █\n█   █\n█████'
+    run initWalls 5 5 0
+    assert_success
+    echo -e "$map" | assert_output --stdin
+}
+
 function test_map_item_attribute { # @test
     
     local -r item="1x2:10:M:W"
@@ -50,10 +57,10 @@ function test_translate_coordinate { # @test
 
 function test_draw_map { # @test
     
-    local -r map="█████\n█   █\n█   █\n█   █\n█████"
+    local -r map=$'█████\n█   █\n█   █\n█   █\n█████'
     local -r entity1="1x1:1:X:"
     local -r entity2="2x2:1:O:"
-    local -r endMap="█████\n█X  █\n█ O █\n█   █\n█████"
+    local -r endMap=$'█████\n█X  █\n█ O █\n█   █\n█████'
 
     run --separate-stderr drawMap "$map" "5" "$entity1" "$entity2"
     assert_success
@@ -68,14 +75,13 @@ function test_draw_map { # @test
     echo -e "$endMap" | assert_output --stdin
 }
 
-# bats test_tags=bats:focus
 function test_draw_map_Redraw { # @test
 
-    local -r map="█████\n█   █\n█   █\n█   █\n█████"
+    local -r map=$'█████\n█   █\n█   █\n█   █\n█████'
     local -r entity1="1x1:1:X:"
-    local -r midMap="█████\n█X  █\n█   █\n█   █\n█████"
+    local -r midMap=$'█████\n█X  █\n█   █\n█   █\n█████'
     local -r entity2="2x2:1:O:"
-    local -r endMap="█████\n█X  █\n█ O █\n█   █\n█████"
+    local -r endMap=$'█████\n█X  █\n█ O █\n█   █\n█████'
     
     echo "Map length is ${#map}"
     run --separate-stderr drawMap "$map" "5" "$entity1"
@@ -96,8 +102,8 @@ function test_draw_map_Redraw { # @test
 
 function test_detect_width { # @test
     
-    local -r map="█████\n█   █\n█   █\n█   █\n█████"
-    local -r badmap="█████\n██\n██\n██\n█████"
+    local -r map=$'█████\n█   █\n█   █\n█   █\n█████'
+    local -r badmap=$'█████\n██\n██\n██\n█████'
 
     run detectWidth "$map"
     assert_success
@@ -114,11 +120,11 @@ function test_detect_width { # @test
 
 function test_move_entity { # @test
     
-    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
-    local -r map="█████\n█ M █\n█   █\n█   █\n█████"
+    local -r walls=$'█████\n█   █\n█   █\n█   █\n█████'
+    local -r map=$'█████\n█ M █\n█   █\n█   █\n█████'
     local -r preentity="2x1:9:M:W"
-    local -r postentities="2x2:9:M:W\n2x1:8:W: "
-    local -r postmap="█████\n█ W █\n█ M █\n█   █\n█████"
+    local -r postentities=$'2x2:9:M:W\n2x1:8:W: '
+    local -r postmap=$'█████\n█ W █\n█ M █\n█   █\n█████'
 
     run moveEntity "$map" "$preentity" 2 2
     assert_success
@@ -132,7 +138,7 @@ function test_move_entity { # @test
 
 function test_make_simple_move_VertDown { # @test
     
-    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
+    local -r walls=$'█████\n█   █\n█   █\n█   █\n█████'
     local -r startV1="1x1:3:V:"
     local -r startP1="1x3:2:#:"
     local -r endV1="1x2:3:V:"
@@ -148,7 +154,7 @@ function test_make_simple_move_VertDown { # @test
 
 function test_make_simple_move_VertUp { # @test
     
-    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
+    local -r walls=$'█████\n█   █\n█   █\n█   █\n█████'
     local -r startV1="1x3:3:V:"
     local -r startP1="1x1:2:#:"
     local -r endV1="1x2:3:V:"
@@ -164,7 +170,7 @@ function test_make_simple_move_VertUp { # @test
 
 function test_make_simple_move_HorzLeft { # @test
     
-    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
+    local -r walls=$'█████\n█   █\n█   █\n█   █\n█████'
     local -r startV1="1x1:3:V:"
     local -r startP1="3x1:2:#:"
     local -r endV1="2x1:3:V:"
@@ -180,7 +186,7 @@ function test_make_simple_move_HorzLeft { # @test
 
 function test_make_simple_move_HorzRight { # @test
     
-    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
+    local -r walls=$'█████\n█   █\n█   █\n█   █\n█████'
     local -r startV1="3x1:3:V:"
     local -r startP1="1x1:2:#:"
     local -r endV1="2x1:3:V:"
@@ -196,7 +202,7 @@ function test_make_simple_move_HorzRight { # @test
 
 function test_make_simple_move_Diag { # @test
     
-    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
+    local -r walls=$'█████\n█   █\n█   █\n█   █\n█████'
     local -r startV1="1x1:3:V:"
     local -r startP1="3x3:2:#:"
     run drawMap "$walls" 5 "$startV1" "$startP1"
@@ -211,7 +217,7 @@ function test_make_simple_move_Diag { # @test
 
 function test_make_simple_move_TwoTargetCloseLast { # @test
     
-    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
+    local -r walls=$'█████\n█   █\n█   █\n█   █\n█████'
     local -r startV1="1x1:3:V:"
     local -r startP1="1x3:2:#:"
     local -r startZ1="2x1:3:#:"
@@ -228,7 +234,7 @@ function test_make_simple_move_TwoTargetCloseLast { # @test
 
 function test_make_simple_move_TwoTargetCloseFirst { # @test
     
-    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
+    local -r walls=$'█████\n█   █\n█   █\n█   █\n█████'
     local -r startV1="1x1:3:V:"
     local -r startP1="1x3:2:#:"
     local -r startZ1="2x1:3:#:"
@@ -245,7 +251,7 @@ function test_make_simple_move_TwoTargetCloseFirst { # @test
 
 function test_make_simple_move_IgnoreDistractions { # @test
     
-    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
+    local -r walls=$'█████\n█   █\n█   █\n█   █\n█████'
     local -r startV1="1x1:3:V:"
     local -r startP1="1x3:2:#:"
     local -r startZ1="3x1:3:Z:"
@@ -295,7 +301,7 @@ function test_check_goal_MonsterGetPlayer { # @test
 
 function test_make_entity_set { # @test
     
-    local -r walls="█████\n█   █\n█   █\n█   █\n█████"
+    local -r walls=$'█████\n█   █\n█   █\n█   █\n█████'
 
     run --separate-stderr makeEntitySet "$walls" 1 5 5
     echoerr -e "Output was \n$output\nStderr was \n$stderr"
