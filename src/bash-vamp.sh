@@ -13,10 +13,89 @@ function randomGenerator {
     echo $result
 }
 
-declare -r ENTITY_MATCHER='[[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM]'
-declare -r MAP_ENTRY='█|@?#?V?W?M?'
-declare MAP_ROW; MAP_ROW=$( printf "(%s,)+:" "$MAP_ENTRY" ); declare -r MAP_ROW;
-declare MAP_STATE_MATCHER; MAP_STATE_MATCHER=$( printf "^ENTITIES:(%s,)+MAZE_META:([[:digit:]]+x[[:digit:]]+y)MAZE:(%s)+$" "$ENTITY_MATCHER" "$MAP_ROW" ); declare -r MAP_STATE_MATCHER;
+# shellcheck disable=SC2120 # optional parameters
+function generateMatchers { # I need this because for some reason `declare`ing them does not last through the tests
+    if [[ $# -eq 0 ]]; then
+        selected="ENTITIES:([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)?(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*)MAZE_META:([[:digit:]]+)x([[:digit:]]+)yMAZE:((((█?,|@?#?V?W?M?,)*):)*)"
+        echo "$selected"
+        return 0
+    fi
+    if [[ $# -ge 2 ]]; then
+        local -n selected
+    else 
+        local selected
+    fi
+    case $1 in
+        "ALLOWED_ENTITIES")
+            selected="([@#VM])"
+        ;;
+        "ENTITY_MATCHER")
+            selected="([[:digit:]]+)x([[:digit:]]+)y([[:digit:]]+)z([@#VM])%s"
+        ;;
+        "ENTITIES_LIST_MATCHER")
+            selected="ENTITIES:([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)?(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*)"
+        ;;
+        "MAP_META")
+            selected="MAZE_META:([[:digit:]]+)x([[:digit:]]+)y"
+        ;;
+        "MAP_ENTRY")
+            selected="█?|@?#?V?W?M?"
+        ;;
+        "MAP_COLS")
+            selected="(█?|@?#?V?W?M?),((█?,|@?#?V?W?M?,)*):"
+        ;;
+        "MAP_ROWS")
+            selected="((█?,|@?#?V?W?M?,)+):((((█?,|@?#?V?W?M?,)*):)*)"
+        ;;
+        "MAZE")
+            selected="MAZE:((((█?,|@?#?V?W?M?,)*):)*)"
+        ;;
+        "MAP_STATE_MATCHER")
+            selected="ENTITIES:([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)?(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*)MAZE_META:([[:digit:]]+)x([[:digit:]]+)yMAZE:((((█?,|@?#?V?W?M?,)*):)*)"
+        ;;
+        *)
+            echoerr "'$1' unkown, defaulting to MAP_STATE_MATCHER"
+            selected="ENTITIES:([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)?(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*)MAZE_META:([[:digit:]]+)x([[:digit:]]+)yMAZE:((((█?,|@?#?V?W?M?,)*):)*)"
+            return 1
+        ;;
+    esac
+
+    echo "$selected"
+    return 0
+}
+
+function verifyMapState {
+    local -i printsuccess=0
+    local state=""
+    if [[ $# -gt 2 || $# -lt 1 || ( $# -eq 2 && $1 != "--printsuccess" )]]; then
+        echoerr "usage: [--printsuccess] state"
+        return 2
+    fi
+    if [[ $# -eq 2 && $1 = "--printsuccess" ]]; then
+        printsuccess=1
+        shift
+    fi
+    local -r state=$1
+    local matcher; matcher=$( generateMatchers "MAP_STATE_MATCHER" )
+    if ! [[ "$state" =~ $matcher ]]; then
+        echoerr "Failed general match"
+        echoerr "Matcher: $matcher"
+        echoerr "Failed in some other way:"
+        for ((i=0; i < ${#BASH_REMATCH[@]}; i++)); do
+            echoerr -e "\t$i: ${BASH_REMATCH[$i]}"
+        done
+        return 1
+    fi
+    if [[ $printsuccess -ne 0 ]]; then
+        echo "Success!"
+        echo "Success State: $state"
+        echo "Success Matcher: $matcher"
+        echo "Success rematch:"
+        for ((i=0; i < ${#BASH_REMATCH[@]}; i++)); do
+            echo -e "\t$i: ${BASH_REMATCH[$i]}"
+        done
+    fi
+}
 
 
 function initWalls {
@@ -57,9 +136,10 @@ function initWalls {
         wally+=":"
     done
 
-    if ! [[ "$wally" =~ $MAP_STATE_MATCHER ]]; then
+    local -r matcher=$( generateMatchers )
+    if ! [[ "$wally" =~ $matcher ]]; then
         echo -e "$wally"
-        echoerr "Does not match the state"
+        echoerr "Did not produce good map state"
         return 1
     fi
 
@@ -67,6 +147,53 @@ function initWalls {
         echo -e "$wally"
     fi
     return 0
+}
+
+function placeNewEntity {
+    if [[ $# -ne 4 ]]; then
+        echoerr "Usage: placeNewEntity state code xCoord yCoord"
+        return 2
+    fi
+    if ! verifyMapState "$1" ; then
+        echoerr "Not a good state"
+        return 2
+    fi
+    local state="$1"
+    if ! [[ "$state" =~ $( generateMatchers "MAP_META" ) ]]; then
+        echoerr "State doesn't have xMax and yMax"
+        return 2
+    fi
+    local -i -r xMax=${BASH_REMATCH[1]}
+    local -i -r yMax=${BASH_REMATCH[2]}
+    shift
+    if ! [[ "$1" =~ $( generateMatchers "ALLOWED_ENTITIES" ) ]]; then
+        echoerr "'$1' is not an allowed entity"
+        return 2
+    fi
+    local -r code="$1"
+    local -r -i mohs=$( mohsMap "$code" )
+    shift
+    if [[ $1 -le 0 || $1 -ge $xMax || $2 -le 0 || $2 -ge $yMax ]]; then
+        echoerr "'$1' and '$2' must be strictly inside the bounds of (0, $xMax) and (0, $yMax)"
+        return 1
+    fi
+    local -i -r xCoord=$1
+    local -i -r yCoord=$2
+
+    local rebuild="${state/%MAZE:*}MAZE:"
+    local maze=${state/#?+MAZE:/}
+    local -r rowMatcher=$( generateMatchers "MAP_COLS_SEP" )
+    for (( x=0;x<xCoord;x++ )); do
+        if ! [[ "$maze" =~ $rowMatcher ]]; then
+            echoerr "Cannot match row $x"
+            return 1
+        fi
+        rebuild="${rebuild}${BASH_REMATCH[1]}"
+        maze="${BASH_REMATCH[2]}"
+    done
+
+
+
 }
 
 function translateCoordinate {
@@ -98,23 +225,6 @@ function translateCoordinate {
         return 1
     fi
 }
-
-function detectWidth() {
-    local -t -r toDetect=$1
-    local -t -a split
-    readarray -t split < <(echo -e "$toDetect")
-    local -i width=${#split[0]}
-    for line in "${split[@]}"; do
-        if [[ ${#line} -ne $width ]]; then
-            echoerr -e "Inconsistent widths in \n$toDetect"
-            echo $width
-            return 2
-        fi
-    done
-    echo $width
-    return 0
-}
-
 
 function mohsMap {
     if [[ $# -ne 1 ]]; then
@@ -216,41 +326,31 @@ function retriveMapItemAttribute {
 }
 
 function drawMap() {
-    if [[ $# -lt 2 ]]; then
-        echoerr "Expecting the string of the map, the width of the map, and the set of entities to draw"
+    local -r matcher=$( generateMatchers "MAP_STATE_MATCHER" )
+    if [[ $# -eq 1 ]]; then
+        echoerr "Expecting only one argument that is the string of the map state, like the following: $matcher"
+        echoerr "But found: '$*'"
         return 1
     fi
-    local -r mapSource=$1
-    shift
-    if ! [[ $1 =~ ^[[:digit:]]+$ ]]; then
-        echoerr "The width of the map must be a number"
+    if ! verifyMapState "$1"; then
+        echoerr "Expecting the string of the map state, like the following: $matcher"
+        echoerr "But found: '$*'"
         return 1
     fi
-    local -r -i mapWidth=$1
-    shift
+    local -r mapSource=${1#*MAZE:}
+    echoerr "Maze is $mapSource"
+    local -a mazeRows
+    readarray -t -d ":" mazeRows < <( echo "$mapSource" )
 
     local -t drawn=""
-    local -t entity
-    for entity in "$@"; do
-        local -i entityX; local -i entityY; local -i flat; local code;
-        entityX=$( retriveMapItemAttribute "$entity" "x" ) || return $?
-        entityY=$( retriveMapItemAttribute "$entity" "y" ) || return $?
-        flat=$( translateCoordinate $mapWidth "toFlat" "$entityX" "$entityY" ) || return $?
-        code=$( retriveMapItemAttribute "$entity" "code" ) || return $?
-
-        local -i drawLen=${#drawn}
-        if [[ $flat -lt $drawLen ]]; then
-            drawn=${drawn:0:$flat}${code}${drawn:$flat+1} # replace
-        else
-            drawn+=${mapSource:$drawLen:$flat-$drawLen}${code}
-        fi
-        
+    for row in "${mazeRows[@]}"; do
+        local -a cols
+        readarray -t -d "," cols < <( echo "$row" )
+        for col in "${cols[@]}"; do
+            drawn+=$( if [[ ${#col} -eq 0 ]]; then echo " "; else echo "${col: -1:1}"; fi )
+        done
+        drawn+=$'\n'
     done
-
-    if [[ ${#drawn} -lt ${#mapSource} ]]; then
-        drawn+=${mapSource:${#drawn}:${#mapSource}-${#drawn}}
-    fi
-
     echo -e "$drawn"
 }
 
