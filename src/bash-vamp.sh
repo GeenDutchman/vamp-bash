@@ -28,7 +28,7 @@ function generateMatchers { # I need this because for some reason `declare`ing t
     fi
     case $1 in
         "ALLOWED_ENTITIES")
-            selected="([@#VM])"
+            selected="[@#VM]"
         ;;
         "ENTITY_MATCHER")
             selected="([[:digit:]]+)x([[:digit:]]+)y([[:digit:]]+)z([@#VM])"
@@ -150,7 +150,7 @@ function initWalls {
     return 0
 }
 
-function placeEntity {
+function placeEntity { # placeEntity 'state' 'xDestination' 'yDestination' (--new 'code' | --move 'entity')
     local -r usageString="Usage: placeEntity 'state' 'xDestination' 'yDestination' (--new 'code' | --move 'entity')"
     if [[ $# -ne 5 ]]; then
         echoerr "$usageString"
@@ -242,7 +242,8 @@ function placeEntity {
             unset cols
             IFS="," read -r -d '' -a cols < <( printf "%s\0" "${rows[$fromY]}" )
             local replaceArea=${cols[$fromX]:0:${fromZ}+1}
-            replaceArea=${replaceArea/$code/}
+            local -r replacecode=$( if [[ "$code" = "M" ]]; then echo "W"; else echo ""; fi ) # TODO: this replacement is hardcoded
+            replaceArea=${replaceArea/$code/$replacecode}
             cols[fromX]=${replaceArea}${cols[$fromX]:${fromZ}+1}
             for (( xcol=0; xcol<${#cols[@]}; xcol++ )); do
                 rows[yCoord]+=$( printf "%s," "${cols[$xcol]}" )
@@ -383,44 +384,55 @@ function drawMap() {
 }
 
 function makeSimpleMove() {
-    local -r mappy=$1
+    local -r usageString="Usage: makeSimpleMove 'state' 'entityToMove' 'targetEntities'... "
+    local -r entityMatcher=$( generateMatchers "ENTITY_MATCHER" )
+    if [[ $# -lt 2 ]]; then
+        echoerr "$usageString"
+        return 2
+    elif ! verifyMapState "$1"; then
+        echoerr "$usageString"
+        return 2
+    elif ! [[ "$2" =~ $entityMatcher ]]; then
+        echoerr "$usageString"
+        echoerr "The argument for 'entityToMove' should match '$entityMatcher' but you provided '$2'"
+        return 2
+    fi
+    local -r mappy="$1"
+    local -r -t entity="$2"
+    local -r myCode=${BASH_REMATCH[4]}
+    local -r -i myX=${BASH_REMATCH[1]}
+    local -r -i myY=${BASH_REMATCH[2]}
     shift
-    local entity=$1
     shift
-    local -t myCode
-    local -i myX
-    local -i myY
-    myCode=$( retriveMapItemAttribute "$entity" "code" ) || return $?
-    myX=$( retriveMapItemAttribute "$entity" "x" ) || return $?
-    myY=$( retriveMapItemAttribute "$entity" "y" ) || return $?
 
     if [[ $# -lt 1 ]]; then
-        echo "$entity"
+        echo "$mappy"
         return 0
+    elif [[ "$myCode" =~ ^[@█W]$|^[[:space:]]$ ]]; then
+        echo "$mappy"
+        return 1
     fi
+
     local -t targetEntity=""
     local -t -i targetDist=-1
     local -i targetX=-1
     local -i targetY=-1
 
     for checkTarget in "$@"; do
-        local -t checkCode
-        checkCode=$( retriveMapItemAttribute "$checkTarget" "code" ) || continue;
+        if ! [[ "$checkTarget" =~ $entityMatcher ]]; then
+            continue;
+        fi
+        local -t checkCode=${BASH_REMATCH[4]}
+        local -i checkX=${BASH_REMATCH[1]}
+        local -i checkY=${BASH_REMATCH[2]}
         if [[ "$myCode" = "$checkCode" ]]; then
             continue;
-        elif [[ "$myCode" =~ ^[@█W]$|^[[:space:]]$ ]]; then
-            echo "$entity"
-            return 1
         elif [[ "$myCode" = "#" && "$checkCode" != "@" ]]; then
             continue
         elif [[ "$myCode" =~ ^[VM]$ && "$checkCode" != "#" ]]; then
             continue
         fi
-        local -i checkX
-        local -i checkY
         local -i checkDist
-        checkX=$( retriveMapItemAttribute "$checkTarget" "x" ) || continue;
-        checkY=$( retriveMapItemAttribute "$checkTarget" "y" ) || continue;
         checkDist=$(( (checkX - myX)**2 + (checkY - myY)**2 )) # how far is it from the entity
         if [[ $targetDist -lt 0 || $checkDist -lt $targetDist ]]; then
             targetEntity="$checkTarget"
@@ -428,13 +440,14 @@ function makeSimpleMove() {
             targetX=$checkX
             targetY=$checkY
             if [[ $targetDist -eq 0 ]]; then
-                break; # can't get much closer than 0
+                echo "$mappy"
+                return 0 # can't get much closer than zero, so leave
             fi
         fi
     done
 
     if [[ "$targetEntity" = "" || $targetDist -le 0 ]]; then
-        echo "$entity"
+        echo "$mappy"
         return 0
     fi
 
@@ -443,35 +456,35 @@ function makeSimpleMove() {
 
     if [[ $yDiff -eq 0 ]]; then
         if [[ $xDiff -gt 0 ]]; then
-            moveEntity "$mappy" "$entity" $(( myX + 1 )) "$myY"
+            placeEntity "$mappy" $(( myX + 1 )) "$myY" --move "$entity"
             return $?
         else # should not need an -eq 0 case
-            moveEntity "$mappy" "$entity" $(( myX - 1 )) "$myY"
+            placeEntity "$mappy" $(( myX - 1 )) "$myY" --move "$entity"
             return $?
         fi
     elif [[ $xDiff -eq 0 ]]; then
         if [[ $yDiff -gt 0 ]]; then
-            moveEntity "$mappy" "$entity" "$myX" $(( myY + 1 ))
+            moveEntity "$mappy" "$myX" $(( myY + 1 )) --move "$entity"
             return $?
         else # should not need an -eq 0 case
-            moveEntity "$mappy" "$entity" "$myX" $(( myY - 1 ))
+            moveEntity "$mappy" "$myX" $(( myY - 1 )) --move "$entity"
             return $?
         fi
     else
         if [[ 0 -eq $( randomGenerator 2 ) ]]; then
-                    if [[ $xDiff -gt 0 ]]; then
-                moveEntity "$mappy" "$entity" $(( myX + 1 )) "$myY"
+            if [[ $xDiff -gt 0 ]]; then
+                placeEntity "$mappy" $(( myX + 1 )) "$myY" --move "$entity"
                 return $?
             else # should not need an -eq 0 case
-                moveEntity "$mappy" "$entity" $(( myX - 1 )) "$myY"
+                placeEntity "$mappy" $(( myX - 1 )) "$myY" --move "$entity"
                 return $?
             fi
         else
             if [[ $yDiff -gt 0 ]]; then
-                moveEntity "$mappy" "$entity" "$myX" $(( myY + 1 ))
+                moveEntity "$mappy" "$myX" $(( myY + 1 )) --move "$entity"
                 return $?
             else # should not need an -eq 0 case
-                moveEntity "$mappy" "$entity" "$myX" $(( myY - 1 ))
+                moveEntity "$mappy" "$myX" $(( myY - 1 )) --move "$entity"
                 return $?
             fi
         fi
