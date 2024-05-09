@@ -23,7 +23,7 @@ function test_map_item_generation { # @test
 }
 
 function test_init_walls { # @test
-    local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,,,,█,:█,,,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:"
+    local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,,,,█,:█,,,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:,"
     run initWalls 5 5 0
     assert_success
     echo -e "$map" | assert_output --stdin
@@ -69,7 +69,7 @@ function test_generate_matchers { # @test
 
 function test_verify_map_state { # @test
     local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,X,,,█,:█,,O,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:1x1y1zX,2x2y1zO,"
-    run verifyMapState --printsuccess "$map"
+    run verifyMapState "$map" --printsuccess --diagnose
     assert_failure 1
 
 }
@@ -78,7 +78,7 @@ function test_draw_map { # @test
     local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,#,,,█,:█,,V,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:1x1y1z#,2x2y1zV,"
     local -r endMap=$'█████\n█#  █\n█ V █\n█   █\n█████'
 
-    run --separate-stderr drawMap "$map" "5"
+    run --separate-stderr drawMap "$map"
     echo "Error was:$stderr"
     assert_success
     assert_output -p "#"
@@ -101,7 +101,7 @@ function test_draw_map_Redraw { # @test
     local -r endMap=$'█████\n█#  █\n█ V █\n█   █\n█████'
     
     echo "Map length is ${#map}"
-    run --separate-stderr drawMap "$map"
+    run drawMap "$map"
     assert_success
     assert_output -p "#"
     echo "First output length was ${#output}"
@@ -123,7 +123,7 @@ function test_move_entity { # @test
     local -r prevdraw=$'█████\n█ M █\n█   █\n█   █\n█████'
     local -r postdraw=$'█████\n█ W █\n█ M █\n█   █\n█████'
 
-    run moveEntity "$prevmap" 2 2 --move "$preentity"
+    run placeEntity "$prevmap" 2 2 --move "$preventity"
     assert_success
     echo -e "$postmap" | assert_output --stdin
 
@@ -161,7 +161,7 @@ function test_make_simple_move_HorzLeft { # @test
     local -r startV1="3x1y0zV"
     local -r startP1="1x1y0z#"
     local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,#,,V,█,:█,,,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${startV1},"
-    local -r endV1="1x2y0zV"
+    local -r endV1="2x1y0zV"
     local -r endmap="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,#,V,,█,:█,,,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${endV1},"
     run makeSimpleMove "$map" "$startV1" "$startP1"
     assert_success
@@ -173,7 +173,7 @@ function test_make_simple_move_HorzRight { # @test
     local -r startV1="1x1y0zV"
     local -r startP1="3x1y0z#"
     local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,V,,#,█,:█,,,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${startV1},"
-    local -r endV1="1x2y0zV"
+    local -r endV1="2x1y0zV"
     local -r endmap="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,,V,#,█,:█,,,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${endV1},"
     run makeSimpleMove "$map" "$startV1" "$startP1"
     assert_success

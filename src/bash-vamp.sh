@@ -72,19 +72,37 @@ function generateMatchers { # I need this because for some reason `declare`ing t
 }
 
 function verifyMapState {
-    local -i printsuccess=0
-    local state=""
-    if [[ $# -gt 2 || $# -lt 1 || ( $# -eq 2 && $1 != "--printsuccess" )]]; then
-        echoerr "usage: [--printsuccess] state"
+    if [[ $# -lt 1 || $# -gt 3 ]]; then
+        echoerr "usage: state [--printsuccess] [--diagnose]"
         return 2
     fi
-    if [[ $# -eq 2 && $1 = "--printsuccess" ]]; then
-        printsuccess=1
-        shift
-    fi
     local -r state=$1
+    shift
+    local -i printsuccess=0
+    local -i diagnose=0
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+        "--printsuccess")
+            printsuccess=1
+        ;;
+        "--diagnose")
+            diagnose=1
+        ;;
+        *)
+            echoerr "usage: state [--printsuccess] [--diagnose]"
+            return 2
+        ;;
+        esac
+        shift
+    done
     local matcher; matcher=$( generateMatchers "MAP_STATE_MATCHER" )
-    if ! [[ "$state" =~ $matcher ]]; then # perform diagnostics
+    if ! [[ "$state" =~ $matcher ]]; then
+        if [[ $diagnose -eq 0 ]]; then
+            echoerr "Failed to match '$matcher'"
+            echoerr "With state '$state'"
+            return 1
+        fi
+        # perform diagnostics
         if ! matcher=$( generateMatchers "PARTITION" ) && [[ "$state" =~ $matcher ]]; then
             echoerr "Failed to partition into the parts of '$matcher'"
             return 1
@@ -119,6 +137,7 @@ function verifyMapState {
             echo -e "\t$i: ${BASH_REMATCH[$i]}"
         done
     fi
+    return 0
 }
 
 
@@ -138,10 +157,10 @@ function initWalls {
 
     if [[ $# -ge 4 ]]; then
         local -n wally=$4
-        wally="ENTITIES:MAZE_META:${mapMaxX}x${mapMaxY}yMAZE:"
+        wally="MAZE_META:${mapMaxX}x${mapMaxY}yMAZE:"
     else
         local wally
-        wally="ENTITIES:MAZE_META:${mapMaxX}x${mapMaxY}yMAZE:"
+        wally="MAZE_META:${mapMaxX}x${mapMaxY}yMAZE:"
     fi
     
     local -i y; local -i x;
@@ -160,10 +179,9 @@ function initWalls {
         wally+=":"
     done
 
-    local -r matcher=$( generateMatchers )
-    if ! [[ "$wally" =~ $matcher ]]; then
-        echo -e "$wally"
-        echoerr "Did not produce good map state"
+    wally+="ENTITIES:,"
+    if ! verifyMapState "$wally"; then
+        verifyMapState "$wally" --diagnose
         return 1
     fi
 
@@ -180,7 +198,7 @@ function placeEntity { # placeEntity 'state' 'xDestination' 'yDestination' (--ne
         return 2
     fi
     if ! verifyMapState "$1" ; then
-        echoerr "Not a good state"
+        verifyMapState "$1" --diagnose
         return 2
     fi
     local state="$1"
@@ -218,6 +236,7 @@ function placeEntity { # placeEntity 'state' 'xDestination' 'yDestination' (--ne
     else
         echoerr "$usageString"
         echoerr "A --new code must match '$allowedEntities' and an entity to --move must match '$entityMatcher'"
+        echoerr "But your call for '$mode' provided '$2'"
         echo "$state"
         return 1
     fi
@@ -228,12 +247,14 @@ function placeEntity { # placeEntity 'state' 'xDestination' 'yDestination' (--ne
         return 1
     fi
     local maze=${BASH_REMATCH[1]}
+    local -a rows
     IFS=":" read -r -d '' -a rows < <( printf "%s\0" "$maze" )
     if [[ $yCoord -ge ${#rows[@]} ]]; then
         echo "$state"
         return 1
     fi
 
+    local -a cols
     IFS="," read -r -d '' -a cols < <( printf "%s\0" "${rows[$yCoord]}" )
     if [[ $xCoord -ge ${#cols[@]} ]]; then
         echo "$state"
@@ -258,7 +279,7 @@ function placeEntity { # placeEntity 'state' 'xDestination' 'yDestination' (--ne
             local -r fromX="${BASH_REMATCH[1]}"
             local -r fromY="${BASH_REMATCH[2]}"
             local -r fromZ="${BASH_REMATCH[3]}"
-            if [[ $fromX -ge $xMax || $fromY -ge $yMax || $fromX -le 0 || $fromY -le 0 || $fromZ -le 0 ]]; then
+            if [[ $fromX -ge $xMax || $fromY -ge $yMax || $fromX -le 0 || $fromY -le 0 || $fromZ -lt 0 ]]; then
                 echoerr "Cannot remove entity '$entity' from out of bounds"
                 return 1
             fi
@@ -268,8 +289,9 @@ function placeEntity { # placeEntity 'state' 'xDestination' 'yDestination' (--ne
             local -r replacecode=$( if [[ "$code" = "M" ]]; then echo "W"; else echo ""; fi ) # TODO: this replacement is hardcoded
             replaceArea=${replaceArea/$code/$replacecode}
             cols[fromX]=${replaceArea}${cols[$fromX]:${fromZ}+1}
+            rows[fromY]="" # reset
             for (( xcol=0; xcol<${#cols[@]}; xcol++ )); do
-                rows[yCoord]+=$( printf "%s," "${cols[$xcol]}" )
+                rows[fromY]+=$( printf "%s," "${cols[$xcol]}" )
             done
         fi
         return 0
@@ -374,15 +396,14 @@ function makeMapItem {
 }
 
 function drawMap() {
-    local -r matcher=$( generateMatchers "MAP_STATE_MATCHER" )
-    if [[ $# -eq 1 ]]; then
-        echoerr "Expecting only one argument that is the string of the map state, like the following: $matcher"
+    if [[ $# -ne 1 ]]; then
+        echoerr "Expecting only one argument that is the string of the map state"
         echoerr "But found: '$*'"
         return 1
     fi
     if ! verifyMapState "$1"; then
-        echoerr "Expecting the string of the map state, like the following: $matcher"
-        echoerr "But found: '$*'"
+        echoerr "Expecting only one argument that is the string of the map state"
+        verifyMapState "$1" --diagnose
         return 1
     fi
     if ! [[ "$1" =~ $( generateMatchers "MAZE" ) && ${#BASH_REMATCH[@]} -ge 2 ]]; then
@@ -414,6 +435,7 @@ function makeSimpleMove() {
         return 2
     elif ! verifyMapState "$1"; then
         echoerr "$usageString"
+        verifyMapState "$1" --diagnose
         return 2
     elif ! [[ "$2" =~ $entityMatcher ]]; then
         echoerr "$usageString"
@@ -487,10 +509,10 @@ function makeSimpleMove() {
         fi
     elif [[ $xDiff -eq 0 ]]; then
         if [[ $yDiff -gt 0 ]]; then
-            moveEntity "$mappy" "$myX" $(( myY + 1 )) --move "$entity"
+            placeEntity "$mappy" "$myX" $(( myY + 1 )) --move "$entity"
             return $?
         else # should not need an -eq 0 case
-            moveEntity "$mappy" "$myX" $(( myY - 1 )) --move "$entity"
+            placeEntity "$mappy" "$myX" $(( myY - 1 )) --move "$entity"
             return $?
         fi
     else
@@ -504,10 +526,10 @@ function makeSimpleMove() {
             fi
         else
             if [[ $yDiff -gt 0 ]]; then
-                moveEntity "$mappy" "$myX" $(( myY + 1 )) --move "$entity"
+                placeEntity "$mappy" "$myX" $(( myY + 1 )) --move "$entity"
                 return $?
             else # should not need an -eq 0 case
-                moveEntity "$mappy" "$myX" $(( myY - 1 )) --move "$entity"
+                placeEntity "$mappy" "$myX" $(( myY - 1 )) --move "$entity"
                 return $?
             fi
         fi
@@ -582,7 +604,7 @@ function makeEntitySet() {
             local entity
             entity=$( makeMapItem "$randX" "$randY" "$mohs" "$code" "$replace" )
             
-            if entity=$( moveEntity "$map" "$entity" "$randX" "$randY" ); then
+            if entity=$( placeEntity "$map" "$entity" "$randX" "$randY" ); then
                 entities+=("$entity")
                 myMap=$( drawMap "$map" "$mapMaxX" "${entities[@]}" )
                 break
