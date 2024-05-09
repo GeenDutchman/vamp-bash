@@ -33,7 +33,10 @@ function generateMatchers { # I need this because for some reason `declare`ing t
         "ENTITY_MATCHER")
             selected="([[:digit:]]+)x([[:digit:]]+)y([[:digit:]]+)z([@#VM])"
         ;;
-        "ENTITIES_LIST_MATCHER")
+        "ENTITIES_LIST")
+            selected="([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM]),(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*)"
+        ;;
+        "ENTITIES")
             selected="ENTITIES:(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)?(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*))"
         ;;
         "MAP_META")
@@ -50,6 +53,9 @@ function generateMatchers { # I need this because for some reason `declare`ing t
         ;;
         "MAZE")
             selected="MAZE:((((█?,|@?#?V?W?M?,)*):)*)"
+        ;;
+        "PARTITION")
+            selected="^(MAZE_META:.*)(MAZE:.*)(ENTITIES:.*)$"
         ;;
         "MAP_STATE_MATCHER")
             selected="$MASTER_MAP_STATE_MATCHER"
@@ -78,13 +84,30 @@ function verifyMapState {
     fi
     local -r state=$1
     local matcher; matcher=$( generateMatchers "MAP_STATE_MATCHER" )
-    if ! [[ "$state" =~ $matcher ]]; then
-        echoerr "Failed general match"
-        echoerr "Matcher: $matcher"
-        echoerr "Failed in some other way:"
-        for ((i=0; i < ${#BASH_REMATCH[@]}; i++)); do
-            echoerr -e "\t$i: ${BASH_REMATCH[$i]}"
-        done
+    if ! [[ "$state" =~ $matcher ]]; then # perform diagnostics
+        if ! matcher=$( generateMatchers "PARTITION" ) && [[ "$state" =~ $matcher ]]; then
+            echoerr "Failed to partition into the parts of '$matcher'"
+            return 1
+        fi
+        local -r meta="${BASH_REMATCH[1]}"
+        local -r maze="${BASH_REMATCH[2]}"
+        local -r entities="${BASH_REMATCH[3]}"
+        if ! matcher=$( generateMatchers "MAP_META" ) && [[ "$meta" =~ $matcher ]]; then
+            echoerr "Failed to match MAP_META with pattern '$matcher'"
+            echoerr "$meta"
+            return 1
+        fi
+        if ! matcher=$( generateMatchers "MAZE" ) && [[ "$maze" =~ $matcher ]]; then
+            echoerr "Failure detected in the maze with pattern '$matcher'"
+            echoerr "$maze"
+            return 1
+        fi
+        if ! matcher=$( generateMatchers "ENTITIES" ) && [[ "$entities" =~ $matcher ]]; then
+            echoerr "Failure detected in entities with pattern '$matcher'"
+            echoerr "$entities"
+            return 1
+        fi
+        echoerr "Failed in some other way"
         return 1
     fi
     if [[ $printsuccess -ne 0 ]]; then
@@ -261,7 +284,7 @@ function placeEntity { # placeEntity 'state' 'xDestination' 'yDestination' (--ne
         rebuild+=$( printf "%s:" "${rows[$yline]}" )
     done
 
-    if ! [[ "$state" =~ $( generateMatchers "ENTITIES_LIST_MATCHER" ) ]]; then
+    if ! [[ "$state" =~ $( generateMatchers "ENTITIES" ) ]]; then
         echoerr "Cannot add entity '$entity'"
         echo "$state"
         return 1
