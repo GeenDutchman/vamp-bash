@@ -325,6 +325,11 @@ function makeMapItem {
     fi
 
     mapItem="${1}x${2}y${3}z${4}"
+    local -r matcher=$( generateMatchers "ENTITY_MATCHER" )
+    if ! [[ "$mapItem" =~ $matcher ]]; then
+        echoerr "The mapItem '$mapItem' does not follow the regex '$matcher'"
+        return 1
+    fi
     echo "$mapItem"
     return 0
 }
