@@ -180,52 +180,61 @@ function placeNewEntity {
     local -i -r xCoord=$1
     local -i -r yCoord=$2
 
-    local rebuild="${state/%MAZE:*}MAZE:"
-    local maze=${state/#?+MAZE:/}
-    local -r rowMatcher=$( generateMatchers "MAP_ROWS" )
-    local -i y=0
-    for (( y=0;y<=yCoord;y++ )); do
-        if ! [[ "$maze" =~ $rowMatcher && ${#BASH_REMATCH[@]} -ge 4 ]]; then
-            echoerr "Cannot match row $y for maze remainder '$maze'"
-            return 1
-        fi
-        if [[ y -lt yCoord ]]; then
-            rebuild+="${BASH_REMATCH[1]}:"
-            maze="${BASH_REMATCH[3]}"
-        fi
-    done
-
-    local myRow="${BASH_REMATCH[1]}:"
-    maze="${BASH_REMATCH[3]}"
-
-    local -r colMatcher=$( generateMatchers "MAP_COLS" )
-    local -i x=0
-    for (( x=0;x<=xCoord;x++ )); do
-        if ! [[ "$myRow" =~ $colMatcher && ${#BASH_REMATCH[@]} -ge 3 ]]; then
-            echoerr "Cannot match column $x for row remainder '$myRow'"
-            return 1
-        fi
-        if [[ x -lt xCoord ]]; then
-            rebuild+="${BASH_REMATCH[1]},"
-            myRow="${BASH_REMATCH[2]}:"
-        fi
-    done
-
-    local -r codeThere="${BASH_REMATCH[1]: -1:1}"
-    local -r mohsThere=$( mohsMap "$codeThere" )
-    if [[ $mohs -lt $mohsThere ]]; then
+    if ! [[ "$state" =~ $( generateMatchers "MAZE" ) && ${#BASH_REMATCH[@]} -ge 2 ]]; then
+        echoerr "Cannot find the maze"
         echo "$state"
         return 1
     fi
-    rebuild+=${BASH_REMATCH[1]}${code}${myRow}${maze}
-    local -r entity=$( makeMapItem "$xCoord" "$yCoord" "${#BASH_REMATCH[1]}" "$code" )
+    local maze=${BASH_REMATCH[1]}
+    IFS=":" read -r -d '' -a rows < <( printf "%s\0" "$maze" )
+    if [[ $yCoord -ge ${#rows[@]} ]]; then
+        echo "$state"
+        return 1
+    fi
+
+    local myRowString="${rows[$yCoord]}"
+    IFS="," read -r -d '' -a cols < <( printf "%s\0" "$myRowString" )
+    if [[ $xCoord -ge ${#cols[@]} ]]; then
+        echo "$state"
+        return 1
+    fi
+
+    local -i -r mohsThere=$( mohsMap "${cols[$xCoord]: -1:1}" )
+    if [[ $mohsThere -ge $mohs ]]; then
+        echo "$state"
+        return 1
+    fi
+    local -r entity=$( makeMapItem "$xCoord" "$yCoord" "${#cols[$xCoord]}" "$code" )
+    cols[xCoord]+="$code"
+
+    if ! [[ "$state" =~ $( generateMatchers "ENTITIES_LIST_MATCHER" ) ]]; then
+        echoerr "Cannot add entity '$entity'"
+        echo "$state"
+        return 1
+    fi
+
+    # # reconstruct
+    local -t rebuild="MAZE_META:${xMax}x${yMax}yMAZE:"
+    local -i yline=0
+    for (( ; yline<yCoord; yline++)); do
+        rebuild+=$( printf "%s:" "${rows[$yline]}" )
+    done
+    for (( xcol=0; xcol<${#cols[@]}; xcol++ )); do
+        rebuild+=$( printf "%s," "${cols[$xcol]}" )
+    done
+    rebuild+=":"
+    (( yline++ ))
+    for (( ; yline<${#rows[@]}; yline++ )); do
+        rebuild+=$( printf "%s:" "${rows[$yline]}" )
+    done
+
     if ! [[ "$state" =~ $( generateMatchers "ENTITIES_LIST_MATCHER" ) ]]; then
         echoerr "Cannot add entity '$entity'"
         echo "$state"
         return 1
     fi
     rebuild+="ENTITIES:${entity},${BASH_REMATCH[1]:-""}"
-
+    
     echo "$rebuild"
 }
 
