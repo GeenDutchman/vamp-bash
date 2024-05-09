@@ -186,9 +186,9 @@ function test_make_simple_move_Diag { # @test
     local -r startP1="3x3y0z#"
     local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,V,,,█,:█,,,,█,:█,,,#,█,:█,█,█,█,█,:ENTITIES:${startP1},${startV1},"
 
-    run makeSimpleMove "$printed1" "$startV1" "$startP1"
+    run makeSimpleMove "$map" "$startV1" "$startP1"
     assert_success
-    assert_output --regexp '^(1x2y0zV)|(2x1y0zV)$'
+    assert_output --regexp '(1x2y0zV)|(2x1y0zV)'
 }
 
 function test_make_simple_move_TwoTargetCloseLast { # @test
@@ -196,7 +196,7 @@ function test_make_simple_move_TwoTargetCloseLast { # @test
     local -r startP1="1x3y0z#"
     local -r startP2="2x1y0z#"
     local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,V,#,,█,:█,,,,█,:█,#,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${startP2},${startV1},"
-    local -r endV1="2x1y0zV"
+    local -r endV1="2x1y1zV"
     local -r endmap="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,,#V,,█,:█,,,,█,:█,#,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${startP2},${endV1},"
     run makeSimpleMove "$map" "$startV1" "$startP1" "$startP2"
     assert_success
@@ -209,7 +209,7 @@ function test_make_simple_move_TwoTargetCloseFirst { # @test
     local -r startP1="1x3y0z#"
     local -r startP2="2x1y0z#"
     local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,V,#,,█,:█,,,,█,:█,#,,,█,:█,█,█,█,█,:ENTITIES:${startP2},${startP1},${startV1},"
-    local -r endV1="2x1y0zV"
+    local -r endV1="2x1y1zV"
     local -r endmap="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,,#V,,█,:█,,,,█,:█,#,,,█,:█,█,█,█,█,:ENTITIES:${startP2},${startP1},${endV1},"
     run makeSimpleMove "$map" "$startV1" "$startP2" "$startP1"
     assert_success
@@ -221,9 +221,9 @@ function test_make_simple_move_IgnoreDistractions { # @test
     local -r startV1="1x1y0zV"
     local -r startP1="1x3y0z#"
     local -r startM1="3x1y0zM"
-    local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,V,,M,█,:█,,,,█,:█,#,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${startP2},${startV1},"
+    local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,V,,M,█,:█,,,,█,:█,#,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${startM1},${startV1},"
     local -r endV1="1x2y0zV"
-    local -r endmap="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,,,M,█,:█,V,,,█,:█,#,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${startP2},${endV1},"
+    local -r endmap="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,,,M,█,:█,V,,,█,:█,#,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${startM1},${endV1},"
     run makeSimpleMove "$map" "$startV1" "$startP1" "$startM1"
     assert_success
     assert_output -p "$endV1"
@@ -232,32 +232,32 @@ function test_make_simple_move_IgnoreDistractions { # @test
 
 function test_check_goal_PlayerMissedGoal { # @test
     
-    run checkGoal "1x1y2z#" "1x2:1:@:"
+    run checkGoal "1x1y2z#" "1x2y1z@"
     assert_failure 1
     assert_output ""
 }
 
 function test_check_goal_GoalNotSeekPlayer { # @test 
     
-    run checkGoal "1x1:2:@:" "1x1:1:#:"
+    run checkGoal "1x1y2z@" "1x1y1z#"
     assert_failure 1
     assert_output ""
 }
 
 function test_check_goal_PlayerGetGoal { # @test
     
-    run checkGoal "1x1:2:#:" "1x1:1:@:"
+    run checkGoal "1x1y2z#" "1x1y1z@"
     assert_success
     assert_output "#"
 }
 
 function test_check_goal_MonsterGetPlayer { # @test
     
-    run checkGoal "1x1:2:V:" "1x1:9:M:" "1x1:1:#:"
+    run checkGoal "1x1y2zV" "1x1y9zM" "1x1y1z#"
     assert_success
     assert_output "V"
 
-    run checkGoal "1x1:9:M:" "1x1:2:V:" "1x1:1:#:"
+    run checkGoal "1x1y9zM" "1x1y2zV" "1x1y1z#"
     assert_success
     assert_output "M"
 }

@@ -103,29 +103,29 @@ function verifyMapState {
             return 1
         fi
         # perform diagnostics
-        if ! matcher=$( generateMatchers "PARTITION" ) && [[ "$state" =~ $matcher ]]; then
+        if matcher=$( generateMatchers "PARTITION" ) ! && [[ "$state" =~ $matcher ]]; then
             echoerr "Failed to partition into the parts of '$matcher'"
             return 1
         fi
         local -r meta="${BASH_REMATCH[1]}"
         local -r maze="${BASH_REMATCH[2]}"
         local -r entities="${BASH_REMATCH[3]}"
-        if ! matcher=$( generateMatchers "MAP_META" ) && [[ "$meta" =~ $matcher ]]; then
+        if matcher=$( generateMatchers "MAP_META" ) && ! [[ "$meta" =~ $matcher ]]; then
             echoerr "Failed to match MAP_META with pattern '$matcher'"
             echoerr "$meta"
             return 1
         fi
-        if ! matcher=$( generateMatchers "MAZE" ) && [[ "$maze" =~ $matcher ]]; then
+        if matcher=$( generateMatchers "MAZE" ) && ! [[ "$maze" =~ $matcher ]]; then
             echoerr "Failure detected in the maze with pattern '$matcher'"
             echoerr "$maze"
             return 1
         fi
-        if ! matcher=$( generateMatchers "ENTITIES" ) && [[ "$entities" =~ $matcher ]]; then
+        if matcher=$( generateMatchers "ENTITIES" ) ! && [[ "$entities" =~ $matcher ]]; then
             echoerr "Failure detected in entities with pattern '$matcher'"
             echoerr "$entities"
             return 1
         fi
-        echoerr "Failed in some other way"
+        echoerr "Failed to match state in some other way"
         return 1
     fi
     if [[ $printsuccess -ne 0 ]]; then
@@ -538,31 +538,33 @@ function makeSimpleMove() {
 }
 
 function checkGoal() {
-    local -r mainEntity=$1
+    local -r entityMatcher=$( generateMatchers "ENTITY_MATCHER" )
+    if ! [[ "$1" =~ $entityMatcher ]]; then
+        echoerr "Expected a single entity, and then a list of target entities, all matching '$entityMatcher'"
+        echoerr "Recieved '$*'"
+        return 2
+    fi
+    # local -r mainEntity=$1
+    local -t -r code=${BASH_REMATCH[4]}
+    local -i -r myX=${BASH_REMATCH[1]}
+    local -i -r myY=${BASH_REMATCH[2]}
     shift
-    local -t code
-    code=$( retriveMapItemAttribute "$mainEntity" "code" ) || { echo ""; return 1; }
 
     if [[ "$code" =~ ^[@█W]$|^[[:space:]]$ ]]; then # only players and monsters care about the goals
         echo ""
         return 1
     fi
 
-    local -i myX
-    local -i myY
-    myX=$( retriveMapItemAttribute "$mainEntity" "x" ) || { echo ""; return 1; }
-    myY=$( retriveMapItemAttribute "$mainEntity" "y" ) || { echo ""; return 1; }
-
     for other in "$@"; do
-        local -t otherCode
-        otherCode=$( retriveMapItemAttribute "$other" "code" ) || continue;
+        if ! [[ "$other" =~ $entityMatcher ]]; then
+            continue
+        fi
+        local -t otherCode=${BASH_REMATCH[4]}
+        local -i otherX=${BASH_REMATCH[1]}
+        local -i otherY=${BASH_REMATCH[2]}
         if [[ "$code" = "$otherCode" ]]; then
             continue;
         fi
-        local -i otherX
-        local -i otherY
-        otherX=$( retriveMapItemAttribute "$other" "x" ) || continue;
-        otherY=$( retriveMapItemAttribute "$other" "y" ) || continue;
         case "$code" in
             "#")
                 if [[ "$otherCode" = "@" && $myX -eq $otherX && $myY -eq $otherY ]]; then
