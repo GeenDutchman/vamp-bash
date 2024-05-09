@@ -264,23 +264,22 @@ function test_check_goal_MonsterGetPlayer { # @test
 
 function test_make_entity_set { # @test
     
-    local -r walls=$'█████\n█   █\n█   █\n█   █\n█████'
+    local -r walls="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,,,,█,:█,,,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:,"
 
-    run --separate-stderr makeEntitySet "$walls" 1 5 5
+    run --separate-stderr makeEntitySet "$walls" 1
     echoerr -e "Output was \n$output\nStderr was \n$stderr"
     assert_output -p "@"
     assert_output -p "#"
     assert_output -p "V"
     assert_success
-    run --separate-stderr drawMap "$walls" 5 $output
+    run --separate-stderr drawMap "$output"
     assert_output -p "@"
     assert_output -p "#"
     assert_output -p "V"
     assert_success
     echoerr -e "Output was \n$output"
-    [ 2 -eq 0 ]
 
-    run makeEntitySet "█" 1 1 1
+    run makeEntitySet "MAZE_META:1x1yMAZE:█,:ENTITIES:," 1
     assert_failure
     assert_output -p "Could not place"
 }

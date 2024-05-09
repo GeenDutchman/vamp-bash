@@ -364,7 +364,7 @@ function mohsMap {
 }
 
 function makeMapItem {
-    if [[ $# -lt 4 ]]; then
+    if [[ $# -ne 4 ]]; then
         echoerr "There must be at least four arguments: xCoordinate, yCoordinate, zCoordinate, and code"
         exit 2
     fi
@@ -585,34 +585,46 @@ function checkGoal() {
 }
 
 function makeEntitySet() {
-    local -t map=$1
-    local -i -r forLevel=$( [ "$2" -ge 0 ] && echo "$2" || echo "1" )
-    local -i -r mapMaxX=$3
-    local -i -r mapMaxY=$4
-
-    local -a entities=()
-
+    local -r usageString="Usage: makeEntitySet 'mapState' [level]"
+    if [[ $# -lt 1 || $# -gt 2 ]]; then
+        echoerr "$usageString"
+        return 1
+    fi
+    if ! verifyMapState "$1"; then
+        echoerr "$usageString"
+        verifyMapState "$1" --diagnose
+        return 1
+    fi
+    local -t map="$1"
+    if ! [[ "$map" =~ $( generateMatchers "MAP_META" ) ]]; then
+        echoerr "$usageString"
+        verifyMapState "$map" --diagnose
+        return 1
+    fi
+    local -i -r mapMaxX=${BASH_REMATCH[1]}
+    local -i -r mapMaxY=${BASH_REMATCH[2]}
+    local -i -r forLevel=$( if [[ $# -eq 2 && "$2" -ge 0 ]]; then echo "$2"; else echo "1"; fi )
+    
+    local -r allowedEntities=$( generateMatchers "ALLOWED_ENTITIES" )
 
     function randomDraw() {
         local -n myMap=map
-        local -i -r mohs=$1
-        local -r code=$2
-        local -r replace=$( [[ $# -ge 3 && "$3" =~ ^[[:print:]]$ ]] && echo "$3" || echo " " )
-        local -i drawn=1
-        for (( drawn=7 ; drawn > 0; drawn-- )); do
+        if ! [[ "$1" =~ $allowedEntities ]]; then
+            echoerr "'$1' is not one of the allowed entities '$allowedEntities'"
+            return 1
+        fi
+        local -r code="$1"
+        local -i attempts=7
+        for (( attempts=7 ; attempts > 0; attempts-- )); do
             local -i randX; local -i randY;
             randX=$( randomGenerator $(( mapMaxX - 2 )) )+1
             randY=$( randomGenerator $(( mapMaxY - 2 )) )+1
-            local entity
-            entity=$( makeMapItem "$randX" "$randY" "$mohs" "$code" "$replace" )
             
-            if entity=$( placeEntity "$map" "$entity" "$randX" "$randY" ); then
-                entities+=("$entity")
-                myMap=$( drawMap "$map" "$mapMaxX" "${entities[@]}" )
-                break
+            if myMap=$( placeEntity "$myMap" "$randX" "$randY" --new "$code" ); then
+                return 0
             fi
         done
-        if [[ $drawn -le 0 ]]; then
+        if [[ $attempts -le 0 ]]; then
             echoerr "Could not place $code on the map:"
             echoerr -e "$myMap"
             return 1
@@ -620,25 +632,25 @@ function makeEntitySet() {
     }
 
     for ((mum=(forLevel / 5); mum > 0; mum--)); do
-        randomDraw 9 "M" "W"
+        randomDraw "M"
     done
 
     for ((vee=forLevel; vee > 0; vee--)); do
-        randomDraw 3 "V"
+        randomDraw "V"
     done
 
-    if ! randomDraw 2 "#"; then
-        echoerr "${entities[@]}"
+    if ! randomDraw "#"; then
+        echoerr "${map}"
         exit 2
     fi
 
-    if ! randomDraw 1 "@"; then
-        echoerr "${entities[@]}"
+    if ! randomDraw "@"; then
+        echoerr "${map}"
         exit 2
     fi
 
 
-    echo "${entities[@]}"
+    echo "${map}"
     return 0
 }
 
