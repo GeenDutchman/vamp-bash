@@ -23,7 +23,7 @@ function test_map_item_generation { # @test
 }
 
 function test_init_walls { # @test
-    local -r map="ENTITIES:MAZE_META:5x5yMAZE:█,█,█,█,█,:█,,,,█,:█,,,,█,:█,,,,█,:█,█,█,█,█,:"
+    local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,,,,█,:█,,,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:"
     run initWalls 5 5 0
     assert_success
     echo -e "$map" | assert_output --stdin
@@ -57,7 +57,7 @@ function test_translate_coordinate { # @test
 
 # bats test_tags=bats:focus
 function test_generate_matchers { # @test
-    local -r map="ENTITIES:1x1y1z#,2x2y1zV,MAZE_META:5x5yMAZE:█,█,█,█,█,:█,#,,,█,:█,,V,,█,:█,,,,█,:█,█,█,█,█,:"
+    local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,#,,,█,:█,,V,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:1x1y1z#,2x2y1zV,"
 
     local -r stateMatcher=$( generateMatchers )
     [[ "$map" =~ $stateMatcher ]]
@@ -76,16 +76,16 @@ function test_generate_matchers { # @test
     assert_regex "$zeroth" "MAZE"
     refute_regex "$zeroth" "ENTITIES"
 
-    local -i -r vampX=2
+    local -i -r vampY=2
     local -r rowMatcher=$( generateMatchers "MAP_ROWS" )
     echo "Matcher MAP_ROWS:$rowMatcher"
     local maze=${map/#?+MAZE:/}
     echo "Leftover maze: $maze"
-    for (( x=0;x<=$vampX;x++ )); do
+    for (( y=0;y<=$vampY;y++ )); do
         if ! [[ "$maze" =~ $rowMatcher ]]; then
-            fail "How did it get to $x with $maze?"
+            fail "How did it get to $y with $maze?"
         fi
-        echo "rematch $x:"
+        echo "rematch $y:"
         for ((i=0; i < ${#BASH_REMATCH[@]}; i++)); do
             echo -e "\t$i: ${BASH_REMATCH[$i]}"
         done
@@ -95,14 +95,14 @@ function test_generate_matchers { # @test
 }
 
 function test_verify_map_state { # @test
-    local -r map="ENTITIES:1x1y1zX,2x2y1zO,MAZE_META:5x5yMAZE:█,█,█,█,█,:█,X,,,█,:█,,O,,█,:█,,,,█,:█,█,█,█,█,:"
+    local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,X,,,█,:█,,O,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:1x1y1zX,2x2y1zO,"
     run verifyMapState --printsuccess "$map"
     assert_failure 1
 
 }
 
 function test_draw_map { # @test
-    local -r map="ENTITIES:1x1y1z#,2x2y1zV,MAZE_META:5x5yMAZE:█,█,█,█,█,:█,#,,,█,:█,,V,,█,:█,,,,█,:█,█,█,█,█,:"
+    local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,#,,,█,:█,,V,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:1x1y1z#,2x2y1zV,"
     local -r endMap=$'█████\n█#  █\n█ V █\n█   █\n█████'
 
     run --separate-stderr drawMap "$map" "5"
@@ -111,6 +111,17 @@ function test_draw_map { # @test
     assert_output -p "#"
     assert_output -p "V"
     echo -e "$endMap" | assert_output --stdin
+}
+
+# bats test_tags=bats:focus
+function test_place_new_entity { # @test
+    local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,,,,█,:█,,V,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:2x2y0zV,"
+    local -r endmap="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,#,,,█,:█,,V,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:1x1y0z#,2x2y0zV,"
+
+    run placeNewEntity "$map" "#" 1 1
+    assert_success
+    echo -e "$endmap" | assert_output --stdin
+
 }
 
 function test_draw_map_Redraw { # @test

@@ -16,7 +16,7 @@ function randomGenerator {
 # shellcheck disable=SC2120 # optional parameters
 function generateMatchers { # I need this because for some reason `declare`ing them does not last through the tests
     if [[ $# -eq 0 ]]; then
-        selected="ENTITIES:([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)?(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*)MAZE_META:([[:digit:]]+)x([[:digit:]]+)yMAZE:((((█?,|@?#?V?W?M?,)*):)*)"
+        selected="MAZE_META:([[:digit:]]+)x([[:digit:]]+)yMAZE:((((█?,|@?#?V?W?M?,)*):)*)ENTITIES:(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*)"
         echo "$selected"
         return 0
     fi
@@ -30,10 +30,10 @@ function generateMatchers { # I need this because for some reason `declare`ing t
             selected="([@#VM])"
         ;;
         "ENTITY_MATCHER")
-            selected="([[:digit:]]+)x([[:digit:]]+)y([[:digit:]]+)z([@#VM])%s"
+            selected="([[:digit:]]+)x([[:digit:]]+)y([[:digit:]]+)z([@#VM])"
         ;;
         "ENTITIES_LIST_MATCHER")
-            selected="ENTITIES:([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)?(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*)"
+            selected="ENTITIES:(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)?(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*))"
         ;;
         "MAP_META")
             selected="MAZE_META:([[:digit:]]+)x([[:digit:]]+)y"
@@ -51,11 +51,11 @@ function generateMatchers { # I need this because for some reason `declare`ing t
             selected="MAZE:((((█?,|@?#?V?W?M?,)*):)*)"
         ;;
         "MAP_STATE_MATCHER")
-            selected="ENTITIES:([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)?(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*)MAZE_META:([[:digit:]]+)x([[:digit:]]+)yMAZE:((((█?,|@?#?V?W?M?,)*):)*)"
+            selected="MAZE_META:([[:digit:]]+)x([[:digit:]]+)yMAZE:((((█?,|@?#?V?W?M?,)*):)*)ENTITIES:(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*)"
         ;;
         *)
             echoerr "'$1' unkown, defaulting to MAP_STATE_MATCHER"
-            selected="ENTITIES:([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)?(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*)MAZE_META:([[:digit:]]+)x([[:digit:]]+)yMAZE:((((█?,|@?#?V?W?M?,)*):)*)"
+            selected="MAZE_META:([[:digit:]]+)x([[:digit:]]+)yMAZE:((((█?,|@?#?V?W?M?,)*):)*)ENTITIES:(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*)"
             return 1
         ;;
     esac
@@ -182,18 +182,51 @@ function placeNewEntity {
 
     local rebuild="${state/%MAZE:*}MAZE:"
     local maze=${state/#?+MAZE:/}
-    local -r rowMatcher=$( generateMatchers "MAP_COLS_SEP" )
-    for (( x=0;x<xCoord;x++ )); do
-        if ! [[ "$maze" =~ $rowMatcher ]]; then
-            echoerr "Cannot match row $x"
+    local -r rowMatcher=$( generateMatchers "MAP_ROWS" )
+    local -i y=0
+    for (( y=0;y<=yCoord;y++ )); do
+        if ! [[ "$maze" =~ $rowMatcher && ${#BASH_REMATCH[@]} -ge 4 ]]; then
+            echoerr "Cannot match row $y for maze remainder '$maze'"
             return 1
         fi
-        rebuild="${rebuild}${BASH_REMATCH[1]}"
-        maze="${BASH_REMATCH[2]}"
+        if [[ y -lt yCoord ]]; then
+            rebuild+="${BASH_REMATCH[1]}:"
+            maze="${BASH_REMATCH[3]}"
+        fi
     done
 
+    local myRow="${BASH_REMATCH[1]}:"
+    maze="${BASH_REMATCH[3]}"
 
+    local -r colMatcher=$( generateMatchers "MAP_COLS" )
+    local -i x=0
+    for (( x=0;x<=xCoord;x++ )); do
+        if ! [[ "$myRow" =~ $colMatcher && ${#BASH_REMATCH[@]} -ge 3 ]]; then
+            echoerr "Cannot match column $x for row remainder '$myRow'"
+            return 1
+        fi
+        if [[ x -lt xCoord ]]; then
+            rebuild+="${BASH_REMATCH[1]},"
+            myRow="${BASH_REMATCH[2]}:"
+        fi
+    done
 
+    local -r codeThere="${BASH_REMATCH[1]: -1:1}"
+    local -r mohsThere=$( mohsMap "$codeThere" )
+    if [[ $mohs -lt $mohsThere ]]; then
+        echo "$state"
+        return 1
+    fi
+    rebuild+=${BASH_REMATCH[1]}${code}${myRow}${maze}
+    local -r entity=$( makeMapItem "$xCoord" "$yCoord" "${#BASH_REMATCH[1]}" "$code" )
+    if ! [[ "$state" =~ $( generateMatchers "ENTITIES_LIST_MATCHER" ) ]]; then
+        echoerr "Cannot add entity '$entity'"
+        echo "$state"
+        return 1
+    fi
+    rebuild+="ENTITIES:${entity},${BASH_REMATCH[1]:-""}"
+
+    echo "$rebuild"
 }
 
 function translateCoordinate {
@@ -262,7 +295,7 @@ function mohsMap {
 
 function makeMapItem {
     if [[ $# -lt 4 ]]; then
-        echoerr "There must be at least four arguments: xCoordinate, yCoordinate, mohs, and code"
+        echoerr "There must be at least four arguments: xCoordinate, yCoordinate, zCoordinate, and code"
         exit 2
     fi
     if ! [[ $1 =~ ^[[:digit:]]+$ ]]; then
@@ -274,18 +307,15 @@ function makeMapItem {
         exit 2
     fi
     if ! [[ $3 =~ ^[[:digit:]]+$ ]]; then
-        echoerr "The mohs must be a number, not '$3'"
+        echoerr "The z coordinate must be a number, not '$3'"
         exit 2
     fi
     if ! [[ ${#4} -eq 1 && $4 =~ ^[[:print:]]$ ]]; then
         echoerr "The code must be only one printable character, not the ${#2} from '$2'"
         exit 2
     fi
-    local replace=" "
-    if [[ $# -ge 5 && ${#5} -eq 1 && $5 =~ ^[[:print:]]$ ]]; then
-        replace=$5
-    fi
-    mapItem="$1x$2:$3:$4:$replace"
+
+    mapItem="${1}x${2}y${3}z${4}"
     echo "$mapItem"
     return 0
 }
