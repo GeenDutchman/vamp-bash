@@ -15,8 +15,9 @@ function randomGenerator {
 
 # shellcheck disable=SC2120 # optional parameters
 function generateMatchers { # I need this because for some reason `declare`ing them does not last through the tests
+    local -r MASTER_MAP_STATE_MATCHER="MAZE_META:([[:digit:]]+)x([[:digit:]]+)yMAZE:((((█?,|@?#?V?W?M?,)*):)*)ENTITIES:(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*)"
     if [[ $# -eq 0 ]]; then
-        selected="MAZE_META:([[:digit:]]+)x([[:digit:]]+)yMAZE:((((█?,|@?#?V?W?M?,)*):)*)ENTITIES:(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*)"
+        selected="$MASTER_MAP_STATE_MATCHER"
         echo "$selected"
         return 0
     fi
@@ -51,11 +52,11 @@ function generateMatchers { # I need this because for some reason `declare`ing t
             selected="MAZE:((((█?,|@?#?V?W?M?,)*):)*)"
         ;;
         "MAP_STATE_MATCHER")
-            selected="MAZE_META:([[:digit:]]+)x([[:digit:]]+)yMAZE:((((█?,|@?#?V?W?M?,)*):)*)ENTITIES:(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*)"
+            selected="$MASTER_MAP_STATE_MATCHER"
         ;;
         *)
             echoerr "'$1' unkown, defaulting to MAP_STATE_MATCHER"
-            selected="MAZE_META:([[:digit:]]+)x([[:digit:]]+)yMAZE:((((█?,|@?#?V?W?M?,)*):)*)ENTITIES:(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*)"
+            selected="$MASTER_MAP_STATE_MATCHER"
             return 1
         ;;
     esac
@@ -149,9 +150,10 @@ function initWalls {
     return 0
 }
 
-function placeNewEntity {
-    if [[ $# -ne 4 ]]; then
-        echoerr "Usage: placeNewEntity state code xCoord yCoord"
+function placeEntity {
+    local -r usageString="Usage: placeEntity 'state' 'xDestination' 'yDestination' (--new 'code' | --move 'entity')"
+    if [[ $# -ne 5 ]]; then
+        echoerr "$usageString"
         return 2
     fi
     if ! verifyMapState "$1" ; then
@@ -165,20 +167,37 @@ function placeNewEntity {
     fi
     local -i -r xMax=${BASH_REMATCH[1]}
     local -i -r yMax=${BASH_REMATCH[2]}
-    shift
-    if ! [[ "$1" =~ $( generateMatchers "ALLOWED_ENTITIES" ) ]]; then
-        echoerr "'$1' is not an allowed entity"
-        return 2
-    fi
-    local -r code="$1"
-    local -r -i mohs=$( mohsMap "$code" )
-    shift
+    shift # past the state
     if [[ $1 -le 0 || $1 -ge $xMax || $2 -le 0 || $2 -ge $yMax ]]; then
         echoerr "'$1' and '$2' must be strictly inside the bounds of (0, $xMax) and (0, $yMax)"
+        echo "$state"
         return 1
     fi
     local -i -r xCoord=$1
     local -i -r yCoord=$2
+    shift
+    shift
+
+    local -r allowedEntities=$( generateMatchers "ALLOWED_ENTITIES" )
+    local -r entityMatcher=$( generateMatchers "ENTITY_MATCHER" )
+    local entity
+    local code
+    local mohs
+    local -r mode="$1"
+    if [[ "$1" = "--new" && "$2" =~ $allowedEntities ]]; then
+        entity=$( makeMapItem "$xCoord" "$yCoord" 0 "$2" )
+        local -r code="$2"
+        local -r mohs=$( mohsMap "$code" )
+    elif [[ "$1" = "--move" && "$2" =~ $entityMatcher ]]; then
+        entity="$2"
+        local -r code="${BASH_REMATCH[4]}"
+        local -r mohs=$( mohsMap "$code" )
+    else
+        echoerr "$usageString"
+        echoerr "A --new code must match '$allowedEntities' and an entity to --move must match '$entityMatcher'"
+        echo "$state"
+        return 1
+    fi
 
     if ! [[ "$state" =~ $( generateMatchers "MAZE" ) && ${#BASH_REMATCH[@]} -ge 2 ]]; then
         echoerr "Cannot find the maze"
@@ -192,8 +211,7 @@ function placeNewEntity {
         return 1
     fi
 
-    local myRowString="${rows[$yCoord]}"
-    IFS="," read -r -d '' -a cols < <( printf "%s\0" "$myRowString" )
+    IFS="," read -r -d '' -a cols < <( printf "%s\0" "${rows[$yCoord]}" )
     if [[ $xCoord -ge ${#cols[@]} ]]; then
         echo "$state"
         return 1
@@ -204,27 +222,41 @@ function placeNewEntity {
         echo "$state"
         return 1
     fi
-    local -r entity=$( makeMapItem "$xCoord" "$yCoord" "${#cols[$xCoord]}" "$code" )
+    
+    local -r -i zCoord=${#cols[$xCoord]}
     cols[xCoord]+="$code"
+    rows[yCoord]="" # reset
+    for (( xcol=0; xcol<${#cols[@]}; xcol++ )); do
+        rows[yCoord]+=$( printf "%s," "${cols[$xcol]}" )
+    done
 
-    if ! [[ "$state" =~ $( generateMatchers "ENTITIES_LIST_MATCHER" ) ]]; then
-        echoerr "Cannot add entity '$entity'"
-        echo "$state"
-        return 1
-    fi
+    function remove {
+        if [[ "$mode" = "--move" && "$entity" =~ $entityMatcher ]]; then
+            local -r fromX="${BASH_REMATCH[1]}"
+            local -r fromY="${BASH_REMATCH[2]}"
+            local -r fromZ="${BASH_REMATCH[3]}"
+            if [[ $fromX -ge $xMax || $fromY -ge $yMax || $fromX -le 0 || $fromY -le 0 || $fromZ -le 0 ]]; then
+                echoerr "Cannot remove entity '$entity' from out of bounds"
+                return 1
+            fi
+            unset cols
+            IFS="," read -r -d '' -a cols < <( printf "%s\0" "${rows[$fromY]}" )
+            local replaceArea=${cols[$fromX]:0:${fromZ}+1}
+            replaceArea=${replaceArea/$code/}
+            cols[fromX]=${replaceArea}${cols[$fromX]:${fromZ}+1}
+            for (( xcol=0; xcol<${#cols[@]}; xcol++ )); do
+                rows[yCoord]+=$( printf "%s," "${cols[$xcol]}" )
+            done
+        fi
+        return 0
+    }
+    remove;
+
 
     # # reconstruct
     local -t rebuild="MAZE_META:${xMax}x${yMax}yMAZE:"
-    local -i yline=0
-    for (( ; yline<yCoord; yline++)); do
-        rebuild+=$( printf "%s:" "${rows[$yline]}" )
-    done
-    for (( xcol=0; xcol<${#cols[@]}; xcol++ )); do
-        rebuild+=$( printf "%s," "${cols[$xcol]}" )
-    done
-    rebuild+=":"
-    (( yline++ ))
-    for (( ; yline<${#rows[@]}; yline++ )); do
+    
+    for (( yline=0 ; yline<${#rows[@]}; yline++ )); do
         rebuild+=$( printf "%s:" "${rows[$yline]}" )
     done
 
@@ -233,39 +265,22 @@ function placeNewEntity {
         echo "$state"
         return 1
     fi
-    rebuild+="ENTITIES:${entity},${BASH_REMATCH[1]:-""}"
+    if [[ "$mode" = "--new" ]]; then
+        entity=${entity/[[:digit:]]z/${zCoord}z}
+        rebuild+="ENTITIES:${entity},${BASH_REMATCH[1]:-""}"
+    elif [[ "$mode" = "--move" ]]; then
+        local wholeEntities=${BASH_REMATCH[0]}
+        local -r newEntity=$( makeMapItem "$xCoord" "$yCoord" "$zCoord" "$code" )
+        rebuild+=${wholeEntities/"${entity}"/"${newEntity}"}
+    else
+        echoerr "$usageString"
+        echoerr "A --new code must match '$allowedEntities' and an entity to --move must match '$entityMatcher'"
+        echo "$state"
+        return 1
+    fi
     
     echo "$rebuild"
-}
-
-function translateCoordinate {
-    local usageMessage="The first argument must be the maximum x dimension. "
-    usageMessage+="Then specify either 'toFlat' or 'toCartesian' followed by two or one numbers respectively."
-    if [[ $# -lt 3 ]]; then
-        echoerr "$usageMessage"
-        return 1
-    fi
-    if ! [[ $1 =~ ^[[:digit:]]+$ ]]; then
-        echoerr "The maximum x dimension must be a positive integer, not '$1'"
-        return 1
-    fi
-    local -i translateMaxX=$1
-    shift
-
-    if [[ $1 = "toFlat" && $# -ge 3 && $2 =~ ^[[:digit:]]+$ && $3 =~ ^[[:digit:]]+$ ]]; then
-        local -r -i rowOffset=$(( (translateMaxX + 1) * $3 ))
-        local -r -i consolidated=$(( rowOffset + $2 ))
-        echo "$consolidated"
-        return 0
-    elif [[ $1 = "toCartesian" && $# -ge 2 && $2 =~ ^[[:digit:]]+$ ]]; then
-        local -r -i yCoord=$(( $2 / (translateMaxX + 1) ))
-        local -r -i xCoord=$(( $2 % (translateMaxX + 1) ))
-        echo "$xCoord $yCoord"
-        return 0
-    else
-        echoerr "$usageMessage"
-        return 1
-    fi
+    return 0
 }
 
 function mohsMap {
@@ -334,41 +349,6 @@ function makeMapItem {
     return 0
 }
 
-function retriveMapItemAttribute {
-    if [[ $# -lt 2 ]]; then
-        echoerr "There must be at least two arguments: mapItem and attribute, not '$*'"
-        return 2
-    fi
-    if ! [[ $1 =~ ^([[:digit:]]+)x([[:digit:]]+):([[:digit:]]+):([[:print:]]):([[:print:]]?)$ ]]; then
-        echoerr "That '$1' does not match the pattern of 'xCoord:yCoord:mohs:code:replace' (with replace being optional)"
-        return 2
-    fi
-    if [[ $2 = "code" ]]; then
-        echo "${BASH_REMATCH[4]}"
-        return 0
-    elif [[ $2 = "mohs" ]]; then
-        echo "${BASH_REMATCH[3]}"
-        return 0
-    elif [[ $2 = "x" || $2 = "X" ]]; then
-        echo "${BASH_REMATCH[1]}"
-        return 0
-    elif [[ $2 = "y" || $2 = "Y" ]]; then
-        echo "${BASH_REMATCH[2]}"
-        return 0
-    elif [[ $2 = "replace" ]]; then
-        local -r temp=${BASH_REMATCH[5]:-" "}
-        if [[ ${#temp} -eq 0 ]]; then
-            echo " "
-        else
-            echo "$temp"
-        fi
-        return 0
-    else
-        echoerr "Unrecognized attribute '$2' requested from '$1'"
-        return 1
-    fi
-}
-
 function drawMap() {
     local -r matcher=$( generateMatchers "MAP_STATE_MATCHER" )
     if [[ $# -eq 1 ]]; then
@@ -381,8 +361,12 @@ function drawMap() {
         echoerr "But found: '$*'"
         return 1
     fi
-    local -r mapSource=${1#*MAZE:}
-    echoerr "Maze is $mapSource"
+    if ! [[ "$1" =~ $( generateMatchers "MAZE" ) && ${#BASH_REMATCH[@]} -ge 2 ]]; then
+        echoerr "Weird, the state was verified but cannot be captured"
+        echoerr "The state was '$1'"
+        return 1
+    fi
+    local -r mapSource=${BASH_REMATCH[1]:-""}
     local -a mazeRows
     readarray -t -d ":" mazeRows < <( echo "$mapSource" )
 
@@ -396,60 +380,6 @@ function drawMap() {
         drawn+=$'\n'
     done
     echo -e "$drawn"
-}
-
-function moveEntity() {
-    if [[ $# -lt 2 ]]; then
-        echoerr "Expecting the string of the map, the entity to move, and the x and y of the destination"
-        return 1
-    fi
-    local -t -r mapSource=$1
-    mapWidth=$(detectWidth "$mapSource") || return $?
-    shift
-    local -t entity=$1
-    shift
-    local -t -i -r nextX=$1
-    shift
-    local -t -i -r nextY=$1
-
-    local -t -i entityX
-    entityX=$( retriveMapItemAttribute "$entity" "x" ) || return $?
-    local -t -i entityY
-    entityY=$( retriveMapItemAttribute "$entity" "y" ) || return $?
-    local -t -i flat
-    flat=$( translateCoordinate "$mapWidth" "toFlat" "$entityX" "$entityY" ) || return $?
-    local -t code
-    code=$( retriveMapItemAttribute "$entity" "code" ) || return $?
-    local -t -i entityMohs
-    entityMohs=$( retriveMapItemAttribute "$entity" "mohs" ) || return $?
-
-
-    local -t -i dest
-    dest=$( translateCoordinate "$mapWidth" "toFlat" "$nextX" "$nextY" ) || return $?
-    if [[ $dest -ge ${#mapSource} ]]; then
-        echoerr "The destination ( '$nextX','$nextY' or '$dest' ) for the entity '$entity' is out of bounds '${#mapSource}' for '$mapSource'"
-        echo "$entity"
-        return 2
-    fi
-
-    local -t -i -r destMohs=$( mohsMap "$dest" )
-    if [[ $destMohs -ge $entityMohs ]]; then
-        echo "$entity"
-        return 2 # could not move there
-    fi
-
-    local -t replacement
-    replacement=$( retriveMapItemAttribute "$entity" "replace" ) || return $?
-    local -t -i -r replaceMohs=$( mohsMap "$replacement" )
-
-    local -r charThere=${mapSource:$flat:1}
-
-    echo "${entity/${entityX}x${entityY}/${nextX}x${nextY}}"
-    if [[ "$code" = "$charThere" ]]; then
-        replacedItem=$(makeMapItem $entityX $entityY $replaceMohs "$replacement") || return $?
-        echo "$replacedItem"
-    fi
-    return 0
 }
 
 function makeSimpleMove() {

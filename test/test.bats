@@ -118,10 +118,9 @@ function test_place_new_entity { # @test
     local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,,,,█,:█,,V,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:2x2y0zV,"
     local -r endmap="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,#,,,█,:█,,V,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:1x1y0z#,2x2y0zV,"
 
-    run placeNewEntity "$map" "#" 1 1
+    run placeEntity "$map" 1 1 --new "#"
     assert_success
     echo -e "$endmap" | assert_output --stdin
-
 }
 
 function test_draw_map_Redraw { # @test
