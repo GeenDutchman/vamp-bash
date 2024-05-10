@@ -1,9 +1,5 @@
 #! /bin/bash
 
-exec 5> debug.log 
-PS4='$LINENO: ' 
-BASH_XTRACEFD="5" 
-
 echoerr() { echo "$@" 1>&2; }
 
 # shellcheck disable=SC2120 # optional parameter
@@ -205,8 +201,7 @@ function placeEntity { # placeEntity 'state' 'xDestination' 'yDestination' (--ne
         echoerr "$usageString"
         return 2
     fi
-    if ! verifyMapState "$1" ; then
-        verifyMapState "$1" --diagnose
+    if ! verifyMapState "$1" --diagnose ; then
         return 2
     fi
     local state="$1"
@@ -473,6 +468,7 @@ function makeSimpleMove() {
                 return $?
             ;;
             A|a|2)
+                echoerr "A detected"
                 placeEntity "$mappy" $(( myX - 1 )) "$myY" --move "$entity"
                 return $?
             ;;
@@ -734,7 +730,7 @@ function runLevel() {
 
         local code="${BASH_REMATCH[4]}"
         if [[ "$code" = "#" ]]; then
-            drawMap "$theWalls"
+            drawMap "$map"
             move=$( playerMove )
             if [[ "$move" = "q" ]]; then
                 echo "Exiting the game...thank you for playing"
@@ -742,8 +738,16 @@ function runLevel() {
             elif [[ "$move" = "r" ]]; then
                 echo "Not yet implemented"
             else
-                map=$( makeSimpleMove "$map" "$thing" --direction "$move" "${entities[@]}" )
-                echo "Move $?"
+                local temp
+                if temp=$( makeSimpleMove "$map" "$thing" --direction "$move" "${entities[@]}" ) && [ "$temp" = "$map" ]; then
+                    echo "Pre and Post the same!"
+                    echo "$map"
+                    echo "$temp"
+                    exit 9
+                else 
+                    echoerr "Bad move"
+                fi
+                map="$temp"                
             fi
         else
             map=$( makeSimpleMove "$map" "$thing" "${entities[@]}" )
@@ -765,9 +769,9 @@ function main() {
         echo "Loading for test"
         return 0
     fi
-    local -i mapMaxX=50
-    local -i mapMaxY=20
-    local -i fill=20
+    local -i mapMaxX=5 #50
+    local -i mapMaxY=5 # 20
+    local -i fill=0 #20
     local theWalls=""
 
     local -i level=0
