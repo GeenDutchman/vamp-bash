@@ -1,5 +1,9 @@
 #! /bin/bash
 
+exec 5> debug.log 
+PS4='$LINENO: ' 
+BASH_XTRACEFD="5" 
+
 echoerr() { echo "$@" 1>&2; }
 
 # shellcheck disable=SC2120 # optional parameter
@@ -15,7 +19,7 @@ function randomGenerator {
 
 # shellcheck disable=SC2120 # optional parameters
 function generateMatchers { # I need this because for some reason `declare`ing them does not last through the tests
-    local -r MASTER_MAP_STATE_MATCHER="MAZE_META:([[:digit:]]+)x([[:digit:]]+)yMAZE:((((█?,|@?#?V?W?M?,)*):)*)ENTITIES:(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*)"
+    local -r MASTER_MAP_STATE_MATCHER="MAZE_META:([[:digit:]]+)x([[:digit:]]+)y([[:digit:]]+r)?MAZE:((((█?,|@?#?V?W?M?,)*):)*)ENTITIES:(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*)"
     if [[ $# -eq 0 ]]; then
         selected="$MASTER_MAP_STATE_MATCHER"
         echo "$selected"
@@ -27,6 +31,9 @@ function generateMatchers { # I need this because for some reason `declare`ing t
         local selected
     fi
     case $1 in
+        "ALLOWED_MOVES")
+            selected="^[WASDwasd1234rq]$"
+        ;;
         "ALLOWED_ENTITIES")
             selected="[@#VM]"
         ;;
@@ -40,7 +47,7 @@ function generateMatchers { # I need this because for some reason `declare`ing t
             selected="ENTITIES:(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)?(([[:digit:]]+x[[:digit:]]+y[[:digit:]]+z[@#VM],)*))"
         ;;
         "MAP_META")
-            selected="MAZE_META:([[:digit:]]+)x([[:digit:]]+)y"
+            selected="MAZE_META:([[:digit:]]+)x([[:digit:]]+)y([[:digit:]]+r)?"
         ;;
         "MAP_ENTRY")
             selected="█?|@?#?V?W?M?"
@@ -103,7 +110,7 @@ function verifyMapState {
             return 1
         fi
         # perform diagnostics
-        if matcher=$( generateMatchers "PARTITION" ) ! && [[ "$state" =~ $matcher ]]; then
+        if matcher=$( generateMatchers "PARTITION" ) && ! [[ "$state" =~ $matcher ]]; then
             echoerr "Failed to partition into the parts of '$matcher'"
             return 1
         fi
@@ -154,13 +161,14 @@ function initWalls {
     local -i -t -r mapMaxX=$1
     local -i -t -r mapMaxY=$2
     local -i -t -r fill=$3
+    local -r level=$( if [[ $# -ge 4 && "$4" =~ ^[[:digit:]]+$ ]]; then echo "${2}r"; else echo ""; fi )
 
     if [[ $# -ge 4 ]]; then
         local -n wally=$4
-        wally="MAZE_META:${mapMaxX}x${mapMaxY}yMAZE:"
+        wally="MAZE_META:${mapMaxX}x${mapMaxY}y${level}MAZE:"
     else
         local wally
-        wally="MAZE_META:${mapMaxX}x${mapMaxY}yMAZE:"
+        wally="MAZE_META:${mapMaxX}x${mapMaxY}y${level}MAZE:"
     fi
     
     local -i y; local -i x;
@@ -317,7 +325,7 @@ function placeEntity { # placeEntity 'state' 'xDestination' 'yDestination' (--ne
     elif [[ "$mode" = "--move" ]]; then
         local wholeEntities=${BASH_REMATCH[0]}
         local -r newEntity=$( makeMapItem "$xCoord" "$yCoord" "$zCoord" "$code" )
-        rebuild+=${wholeEntities/"${entity}"/"${newEntity}"}
+        rebuild+="${wholeEntities/${entity},/}${newEntity},"
     else
         echoerr "$usageString"
         echoerr "A --new code must match '$allowedEntities' and an entity to --move must match '$entityMatcher'"
@@ -428,7 +436,7 @@ function drawMap() {
 }
 
 function makeSimpleMove() {
-    local -r usageString="Usage: makeSimpleMove 'state' 'entityToMove' 'targetEntities'... "
+    local -r usageString="Usage: makeSimpleMove 'state' 'entityToMove' [--direction dir] 'targetEntities'... "
     local -r entityMatcher=$( generateMatchers "ENTITY_MATCHER" )
     if [[ $# -lt 2 ]]; then
         echoerr "$usageString"
@@ -456,6 +464,35 @@ function makeSimpleMove() {
     elif [[ "$myCode" =~ ^[@█W]$|^[[:space:]]$ ]]; then
         echo "$mappy"
         return 1
+    fi
+
+    if [[ "$1" = "--direction" && "$2" =~ $( generateMatchers "ALLOWED_MOVES" ) ]]; then
+        case "$2" in
+            W|w|1)
+                placeEntity "$mappy" "$myX" $(( myY - 1 )) --move "$entity"
+                return $?
+            ;;
+            A|a|2)
+                placeEntity "$mappy" $(( myX - 1 )) "$myY" --move "$entity"
+                return $?
+            ;;
+            S|s|3)
+                placeEntity "$mappy" "$myX" $(( myY + 1 )) --move "$entity"
+                return $?
+            ;;
+            D|d|4)
+                placeEntity "$mappy" $(( myX + 1 )) "$myY" --move "$entity"
+                return $?
+            ;;
+            r)
+                echo "$mappy"
+                return 7
+            ;;
+            q)
+                echo "Ending the game!"
+                exit 7
+            ;;
+        esac
     fi
 
     local -t targetEntity=""
@@ -568,13 +605,13 @@ function checkGoal() {
         case "$code" in
             "#")
                 if [[ "$otherCode" = "@" && $myX -eq $otherX && $myY -eq $otherY ]]; then
-                    echo "#"
+                    echo "Player advances to next round!"
                     return 0
                 fi
             ;;
             "V"|"M")
                 if [[ "$otherCode" = "#" && $myX -eq $otherX && $myY -eq $otherY ]]; then
-                    echo "$code"
+                    echo "$code got you!  Restarting level...."
                     return 0
                 fi
             ;;
@@ -603,7 +640,7 @@ function makeEntitySet() {
     fi
     local -i -r mapMaxX=${BASH_REMATCH[1]}
     local -i -r mapMaxY=${BASH_REMATCH[2]}
-    local -i -r forLevel=$( if [[ $# -eq 2 && "$2" -ge 0 ]]; then echo "$2"; else echo "1"; fi )
+    local -i -r forLevel=$( if [[ $# -eq 2 && "$2" -ge 0 && "$2" =~ ^[[:digit:]]$ ]]; then echo "$2"; else echo "1"; fi )
     
     local -r allowedEntities=$( generateMatchers "ALLOWED_ENTITIES" )
 
@@ -654,17 +691,97 @@ function makeEntitySet() {
     return 0
 }
 
+function playerMove() {
+    local -i -r randomChoice=$( randomGenerator 4 )+1
+    local -r allowedMoves='^[wasdWASD1234rq]$'
+    local move=""
+    while { read -r -t 60 -p "Your move:>" move; move=${move:="$randomChoice"}; ! [[ "$move" =~ $allowedMoves ]]; }; do
+        echo "Your move must be one of $allowedMoves"
+    done
+    echo "$move"
+    return 0
+}
+
+function runLevel() {
+    if ! verifyMapState "$1" --diagnose ; then
+        echoerr "Expecting map state, need it!"
+        exit 1
+    fi
+    local map="$1"
+    local -r entitiesMatcher=$( generateMatchers "ENTITIES" )
+    local -r entityMatcher=$( generateMatchers "ENTITY_MATCHER" )
+    local -a entities
+    local -i round=0
+    local -i -r roundMax=100
+
+    if ! [[ "$map" =~ $entitiesMatcher && ${#BASH_REMATCH[@]} -ge 2 && ${#BASH_REMATCH[1]} -ge 0 ]]; then
+        echoerr "Cannot retrieve entities from state: '$map'"
+        exit 1
+    fi
+    IFS="," read -r -d '' -a entities < <( printf "%s\0" "${BASH_REMATCH[1]}" )
+
+    local -i turn=0
+    while [[ $turn -le ${#entities[@]} && $round -le $roundMax ]]; do
+        if [[ $turn -eq ${#entities[@]} ]]; then
+            turn=0
+            round=$round+1
+        fi
+        local thing="${entities[$turn]}"
+        if ! [[ "$thing" =~ $entityMatcher ]]; then
+            echoerr "This '$thing' is somehow not an entity ( from '${BASH_REMATCH[0]}')"
+            exit 1
+        fi
+
+        local code="${BASH_REMATCH[4]}"
+        if [[ "$code" = "#" ]]; then
+            drawMap "$theWalls"
+            move=$( playerMove )
+            if [[ "$move" = "q" ]]; then
+                echo "Exiting the game...thank you for playing"
+                exit 8
+            elif [[ "$move" = "r" ]]; then
+                echo "Not yet implemented"
+            else
+                map=$( makeSimpleMove "$map" "$thing" --direction "$move" "${entities[@]}" )
+                echo "Move $?"
+            fi
+        else
+            map=$( makeSimpleMove "$map" "$thing" "${entities[@]}" )
+        fi
+
+        if goalMessage=$( checkGoal "$thing" "${entities[@]}" ); then
+            echo "$goalMessage"
+            return 0
+        fi
+
+        (( turn++ ))
+    done
+    return 1
+}
+
 
 function main() {
+    if [[ $# -gt 0 && "$1" = "--loadtest" ]]; then
+        echo "Loading for test"
+        return 0
+    fi
     local -i mapMaxX=50
     local -i mapMaxY=20
     local -i fill=20
     local theWalls=""
 
-    initWalls $mapMaxX $mapMaxY $fill theWalls
+    local -i level=0
 
-    echo -e "$theWalls"
+    for (( level=0; level<=100; level++ )); do
+        echo "Level $level ********************************************************"
+        initWalls $mapMaxX $mapMaxY $fill theWalls
+        theWalls=$( makeEntitySet "$theWalls" "$level" )
+        runLevel "$theWalls" "$level"
+    done
+    echo "Congrats, you have won 100 levels!"
+    return 0
 }
+main "$@"
 
 
 # echo "'$theWalls'"

@@ -10,7 +10,7 @@ setup() {
     PROJECT_ROOT="$( cd "$( dirname "$BATS_TEST_FILENAME" )/.." >/dev/null 2>&1 && pwd )"
     # make executables in src/ visible to PATH
     PATH="$PROJECT_ROOT/src:$PATH"
-    load bash-vamp.sh
+    source bash-vamp.sh --loadtest
 }
 
 function test_map_item_generation { # @test
@@ -248,18 +248,18 @@ function test_check_goal_PlayerGetGoal { # @test
     
     run checkGoal "1x1y2z#" "1x1y1z@"
     assert_success
-    assert_output "#"
+    assert_output "Player advances to next round!"
 }
 
 function test_check_goal_MonsterGetPlayer { # @test
     
     run checkGoal "1x1y2zV" "1x1y9zM" "1x1y1z#"
     assert_success
-    assert_output "V"
+    assert_output "V got you!  Restarting level...."
 
     run checkGoal "1x1y9zM" "1x1y2zV" "1x1y1z#"
     assert_success
-    assert_output "M"
+    assert_output "M got you!  Restarting level...."
 }
 
 function test_make_entity_set { # @test
