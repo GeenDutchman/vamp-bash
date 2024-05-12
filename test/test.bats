@@ -145,6 +145,30 @@ function test_make_simple_move_VertDown { # @test
     assert_output "$endmap"
 }
 
+function test_make_simple_move_VertDown_dir { # @test   
+    local -r startV1="1x1y0zV"
+    local -r startP1="1x3y0z#"
+    local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,V,,,█,:█,,,,█,:█,#,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${startV1},"
+    local -r endV1="1x2y0zV"
+    local -r endmap="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,,,,█,:█,V,,,█,:█,#,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${endV1},"
+    run makeSimpleMove "$map" "$startV1" --direction "s" "$startP1"
+    assert_success
+    assert_output -p "$endV1"
+    assert_output "$endmap"
+}
+
+function test_make_simple_move_VertDown_dir_only { # @test   
+    local -r startV1="1x1y0zV"
+    local -r startP1="1x3y0z#"
+    local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,V,,,█,:█,,,,█,:█,#,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${startV1},"
+    local -r endV1="1x2y0zV"
+    local -r endmap="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,,,,█,:█,V,,,█,:█,#,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${endV1},"
+    run makeSimpleMove "$map" "$startV1" --direction "s"
+    assert_success
+    assert_output -p "$endV1"
+    assert_output "$endmap"
+}
+
 function test_make_simple_move_VertUp { # @test
     local -r startV1="1x3y0zV"
     local -r startP1="1x1y0z#"
@@ -152,6 +176,18 @@ function test_make_simple_move_VertUp { # @test
     local -r endV1="1x2y0zV"
     local -r endmap="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,#,,,█,:█,V,,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${endV1},"
     run makeSimpleMove "$map" "$startV1" "$startP1"
+    assert_success
+    assert_output -p "$endV1"
+    assert_output "$endmap"
+}
+
+function test_make_simple_move_VertUp_dir { # @test
+    local -r startV1="1x3y0zV"
+    local -r startP1="1x1y0z#"
+    local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,#,,,█,:█,,,,█,:█,V,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${startV1},"
+    local -r endV1="1x2y0zV"
+    local -r endmap="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,#,,,█,:█,V,,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${endV1},"
+    run makeSimpleMove "$map" "$startV1" --direction "w" "$startP1"
     assert_success
     assert_output -p "$endV1"
     assert_output "$endmap"
@@ -169,6 +205,18 @@ function test_make_simple_move_HorzLeft { # @test
     assert_output "$endmap"
 }
 
+function test_make_simple_move_HorzLeft_dir { # @test
+    local -r startV1="3x1y0zV"
+    local -r startP1="1x1y0z#"
+    local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,#,,V,█,:█,,,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${startV1},"
+    local -r endV1="2x1y0zV"
+    local -r endmap="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,#,V,,█,:█,,,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${endV1},"
+    run makeSimpleMove "$map" "$startV1" --direction "a" "$startP1"
+    assert_success
+    assert_output -p "$endV1"
+    assert_output "$endmap"
+}
+
 function test_make_simple_move_HorzRight { # @test
     local -r startV1="1x1y0zV"
     local -r startP1="3x1y0z#"
@@ -176,6 +224,18 @@ function test_make_simple_move_HorzRight { # @test
     local -r endV1="2x1y0zV"
     local -r endmap="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,,V,#,█,:█,,,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${endV1},"
     run makeSimpleMove "$map" "$startV1" "$startP1"
+    assert_success
+    assert_output -p "$endV1"
+    assert_output "$endmap"
+}
+
+function test_make_simple_move_HorzRight_dir { # @test
+    local -r startV1="1x1y0zV"
+    local -r startP1="3x1y0z#"
+    local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,V,,#,█,:█,,,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${startV1},"
+    local -r endV1="2x1y0zV"
+    local -r endmap="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,,V,#,█,:█,,,,█,:█,,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${endV1},"
+    run makeSimpleMove "$map" "$startV1" --direction "d" "$startP1"
     assert_success
     assert_output -p "$endV1"
     assert_output "$endmap"
