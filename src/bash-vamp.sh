@@ -290,7 +290,7 @@ function placeEntity { # placeEntity 'state' 'xDestination' 'yDestination' (--ne
             IFS="," read -r -d '' -a cols < <( printf "%s\0" "${rows[$fromY]}" )
             local replaceArea=${cols[$fromX]:0:${fromZ}+1}
             local -r replacecode=$( if [[ "$code" = "M" ]]; then echo "W"; else echo ""; fi ) # TODO: this replacement is hardcoded
-            replaceArea=${replaceArea/$code/$replacecode}
+            replaceArea=${replaceArea/"$code"/"$replacecode"}
             cols[fromX]=${replaceArea}${cols[$fromX]:${fromZ}+1}
             rows[fromY]="" # reset
             for (( xcol=0; xcol<${#cols[@]}; xcol++ )); do
@@ -468,7 +468,6 @@ function makeSimpleMove() {
                 return $?
             ;;
             A|a|2)
-                echoerr "A detected"
                 placeEntity "$mappy" $(( myX - 1 )) "$myY" --move "$entity"
                 return $?
             ;;
@@ -710,14 +709,17 @@ function runLevel() {
     local -i round=0
     local -i -r roundMax=100
 
-    if ! [[ "$map" =~ $entitiesMatcher && ${#BASH_REMATCH[@]} -ge 2 && ${#BASH_REMATCH[1]} -ge 0 ]]; then
-        echoerr "Cannot retrieve entities from state: '$map'"
-        exit 1
-    fi
-    IFS="," read -r -d '' -a entities < <( printf "%s\0" "${BASH_REMATCH[1]}" )
+    function readEntities {
+        if ! [[ "$map" =~ $entitiesMatcher && ${#BASH_REMATCH[@]} -ge 2 && ${#BASH_REMATCH[1]} -ge 0 ]]; then
+            echoerr "Cannot retrieve entities from state: '$map'"
+            exit 1
+        fi
+        IFS="," read -r -d '' -a entities < <( printf "%s\0" "${BASH_REMATCH[1]}" )
+        return 0
+    }
 
     local -i turn=0
-    while [[ $turn -le ${#entities[@]} && $round -le $roundMax ]]; do
+    while readEntities && [[ 0 -lt ${#entities[@]} && $round -le $roundMax ]]; do
         if [[ $turn -eq ${#entities[@]} ]]; then
             turn=0
             round=$round+1
@@ -738,16 +740,7 @@ function runLevel() {
             elif [[ "$move" = "r" ]]; then
                 echo "Not yet implemented"
             else
-                local temp
-                if temp=$( makeSimpleMove "$map" "$thing" --direction "$move" "${entities[@]}" ) && [ "$temp" = "$map" ]; then
-                    echo "Pre and Post the same!"
-                    echo "$map"
-                    echo "$temp"
-                    exit 9
-                else 
-                    echoerr "Bad move"
-                fi
-                map="$temp"                
+                map=$( makeSimpleMove "$map" "$thing" --direction "$move" "${entities[@]}" )               
             fi
         else
             map=$( makeSimpleMove "$map" "$thing" "${entities[@]}" )

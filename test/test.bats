@@ -169,6 +169,18 @@ function test_make_simple_move_VertDown_dir_only { # @test
     assert_output "$endmap"
 }
 
+function test_make_simple_move_VertDown_dir_only_no_replace { # @test   
+    local -r startV1="1x1y0z#"
+    local -r startP1="1x3y0z@"
+    local -r map="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,#,,,█,:█,,,,█,:█,@,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${startV1},"
+    local -r endV1="1x2y0z#"
+    local -r endmap="MAZE_META:5x5yMAZE:█,█,█,█,█,:█,,,,█,:█,#,,,█,:█,@,,,█,:█,█,█,█,█,:ENTITIES:${startP1},${endV1},"
+    run makeSimpleMove "$map" "$startV1" --direction "s"
+    assert_success
+    assert_output -p "$endV1"
+    assert_output "$endmap"
+}
+
 function test_make_simple_move_VertUp { # @test
     local -r startV1="1x3y0zV"
     local -r startP1="1x1y0z#"
