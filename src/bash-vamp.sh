@@ -576,7 +576,7 @@ function checkGoal() {
         echoerr "Recieved '$*'"
         return 2
     fi
-    # local -r mainEntity=$1
+    local -r mainEntity=$1
     local -t -r code=${BASH_REMATCH[4]}
     local -i -r myX=${BASH_REMATCH[1]}
     local -i -r myY=${BASH_REMATCH[2]}
@@ -609,6 +609,9 @@ function checkGoal() {
                     echo "$code got you!  Restarting level...."
                     return 0
                 fi
+            ;;
+            *)
+                echoerr "Problem comparing '$mainEntity' to '$other'"
             ;;
         esac
     done
@@ -710,11 +713,16 @@ function runLevel() {
     local -i -r roundMax=100
 
     function readEntities {
+        local -n toReadEntities=entities
         if ! [[ "$map" =~ $entitiesMatcher && ${#BASH_REMATCH[@]} -ge 2 && ${#BASH_REMATCH[1]} -ge 0 ]]; then
             echoerr "Cannot retrieve entities from state: '$map'"
             exit 1
         fi
-        IFS="," read -r -d '' -a entities < <( printf "%s\0" "${BASH_REMATCH[1]}" )
+        IFS="," read -r -d '' -a toReadEntities < <( printf "%s\0" "${BASH_REMATCH[1]}" )
+        if goalMessage=$( checkGoal "${toReadEntities[-1]}" "${toReadEntities[@]}" ); then
+            echo "$goalMessage"
+            return 1
+        fi
         return 0
     }
 
@@ -730,6 +738,7 @@ function runLevel() {
             exit 1
         fi
 
+
         local code="${BASH_REMATCH[4]}"
         if [[ "$code" = "#" ]]; then
             drawMap "$map"
@@ -743,12 +752,8 @@ function runLevel() {
                 map=$( makeSimpleMove "$map" "$thing" --direction "$move" "${entities[@]}" )               
             fi
         else
+            echo "$code takes a turn"
             map=$( makeSimpleMove "$map" "$thing" "${entities[@]}" )
-        fi
-
-        if goalMessage=$( checkGoal "$thing" "${entities[@]}" ); then
-            echo "$goalMessage"
-            return 0
         fi
 
         (( turn++ ))
