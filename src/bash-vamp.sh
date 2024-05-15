@@ -74,103 +74,72 @@ function generateMatchers { # I need this because for some reason `declare`ing t
     return 0
 }
 
-: '
-    MAP_STATE is an associative array that should contain the following
-    maxX: ^[[:digit:]]+$
-    maxY: ^[[:digit:]]+$
-    level: ^[[:digit:]]+$
-    playerCount: ^[[:digit:]]+$ && > 0
-    vampCount: ^[[:digit:]]+$
-    mummyCount: ^[[:digit:]]+$
-    goal: ^maplocation[[:digit:]]+x[[:digit:]]+y$
-
-    And the following in the ranges:
-    maplocation{0..maxX}x{0..maxY}y: ^█?|@?#?V?W?M?$
-    player{0..playerCount}: ^maplocation[[:digit:]]+x[[:digit:]]+y$
-    vampire{0..vampCount}: ^maplocation[[:digit:]]+x[[:digit:]]+y$
-    mummy{0..mummyCount}: ^maplocation[[:digit:]]+x[[:digit:]]+y$
-'
-declare -A MAP_STATE
-
-function retrieveMapState {
-    declare -p MAP_STATE
-}
-
 function verifyMapState {
-    if [[ ${#MAP_STATE[@]} -le 0 ]]; then
-        echoerr "Map state empty, and it should not be!"
+    if [[ $# -lt 1 || $# -gt 3 ]]; then
+        echoerr "usage: state [--printsuccess] [--diagnose]"
+        return 2
+    fi
+    local -r state=$1
+    shift
+    local -i printsuccess=0
+    local -i diagnose=0
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+        "--printsuccess")
+            printsuccess=1
+        ;;
+        "--diagnose")
+            diagnose=1
+        ;;
+        *)
+            echoerr "usage: state [--printsuccess] [--diagnose]"
+            return 2
+        ;;
+        esac
+        shift
+    done
+    local matcher; matcher=$( generateMatchers "MAP_STATE_MATCHER" )
+    if ! [[ "$state" =~ $matcher ]]; then
+        if [[ $diagnose -eq 0 ]]; then
+            echoerr "Failed to match '$matcher'"
+            echoerr "With state '$state'"
+            return 1
+        fi
+        # perform diagnostics
+        if matcher=$( generateMatchers "PARTITION" ) && ! [[ "$state" =~ $matcher ]]; then
+            echoerr "Failed to partition into the parts of '$matcher'"
+            return 1
+        fi
+        local -r meta="${BASH_REMATCH[1]}"
+        local -r maze="${BASH_REMATCH[2]}"
+        local -r entities="${BASH_REMATCH[3]}"
+        if matcher=$( generateMatchers "MAP_META" ) && ! [[ "$meta" =~ $matcher ]]; then
+            echoerr "Failed to match MAP_META with pattern '$matcher'"
+            echoerr "$meta"
+            return 1
+        fi
+        if matcher=$( generateMatchers "MAZE" ) && ! [[ "$maze" =~ $matcher ]]; then
+            echoerr "Failure detected in the maze with pattern '$matcher'"
+            echoerr "$maze"
+            return 1
+        fi
+        if matcher=$( generateMatchers "ENTITIES" ) ! && [[ "$entities" =~ $matcher ]]; then
+            echoerr "Failure detected in entities with pattern '$matcher'"
+            echoerr "$entities"
+            return 1
+        fi
+        echoerr "Failed to match state in some other way"
         return 1
     fi
-    local -r maxX=${MAP_STATE['maxX']}
-    if ! [[ "$maxX" =~ ^[[:digit:]]+$ && "$maxX" -gt 0 ]]; then
-        echoerr "maxX should be a number greater than zero, not '$maxX'"
-        return 1
-    fi
-    local -r maxY=${MAP_STATE['maxY']}
-    if ! [[ "$maxY" =~ ^[[:digit:]]+$ && "$maxY" -gt 0 ]]; then
-        echoerr "maxY should be a number greater than zero, not '$maxY'"
-        return 1
-    fi
-    local -r level=${MAP_STATE['level']}
-    if ! [[ "$level" =~ ^[[:digit:]] && "$level" -ge 0 ]]; then
-        echoerr "level should be a number greater than or equal to zero, not '$level'"
-        return 1
-    fi
-    local -r playerCount=${MAP_STATE['playerCount']}
-    if ! [[ "$playerCount" =~ ^[[:digit:]] && "$playerCount" -gt 0 ]]; then
-        echoerr "playerCount should be a number greater than, not '$playerCount'"
-        return 1
-    fi
-    local -r vampCount=${MAP_STATE['vampCount']}
-    if ! [[ "$vampCount" =~ ^[[:digit:]] && "$vampCount" -ge 0 ]]; then
-        echoerr "vampCount should be a number greater than or equal to 0, not '$vampCount'"
-        return 1
-    fi
-    local -r mummyCount=${MAP_STATE['mummyCount']}
-    if ! [[ "$mummyCount" =~ ^[[:digit:]] && "$mummyCount" -ge 0 ]]; then
-        echoerr "mummyCount should be a number greater than or equal to 0, not '$mummyCount'"
-        return 1
-    fi
-    local -r location='^maplocation[[:digit:]]+x[[:digit:]]+y$'
-    local -r goal=${MAP_STATE['goal']}
-    if ! [[ "$goal" =~ $location ]]; then
-        echoerr "goal should be present and match '$location', thus not '$goal'"
-        return 1
-    fi
-    for (( x=0;x<maxX;x++ )); do
-        for (( y=0;y<maxY;y++ )); do
-            key=$( printf "maplocation%dx%dy" "$x" "$y" )
-            entry=${MAP_STATE[$key]}
-            if ! [[ "$entry" =~ ^█?|@?#?V?W?M?$ ]]; then
-                echoerr "Map entry '$key' has the value '$entry' which is not valid like so: '^█?|@?#?V?W?M?$'"
-                return 1
-            fi
+    if [[ $printsuccess -ne 0 ]]; then
+        echo "Success!"
+        echo "Success State: $state"
+        echo "Success Matcher: $matcher"
+        echo "Success rematch:"
+        for ((i=0; i < ${#BASH_REMATCH[@]}; i++)); do
+            echo -e "\t$i: ${BASH_REMATCH[$i]}"
         done
-    done
-    for (( p=0;p<playerCount;p++)); do
-        key=$( printf "player%d" "$p" )
-        entry=${MAP_STATE[$key]}
-        if ! [[ "$entry" =~ $location ]]; then
-            echoerr "Player entry '$key' has the value '$entry' which is not valid like so: '$location'"
-            return 1
-        fi
-    done
-    for (( v=0;v<vampCount;v++)); do
-        key=$( printf "vamp%d" "$v" )
-        entry=${MAP_STATE[$key]}
-        if ! [[ "$entry" =~ $location ]]; then
-            echoerr "Vampire entry '$key' has the value '$entry' which is not valid like so: '$location'"
-            return 1
-        fi
-    done
-    for (( m=0;m<mummyCount;m++)); do
-        key=$( printf "mummy%d" "$m" )
-        entry=${MAP_STATE[$key]}
-        if ! [[ "$entry" =~ $location ]]; then
-            echoerr "Mummy entry '$key' has the value '$entry' which is not valid like so: '$location'"
-            return 1
-        fi
-    done
+    fi
     return 0
 }
 
