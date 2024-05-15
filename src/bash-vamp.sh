@@ -82,15 +82,19 @@ function generateMatchers { # I need this because for some reason `declare`ing t
     playerCount: ^[[:digit:]]+$ && > 0
     vampCount: ^[[:digit:]]+$
     mummyCount: ^[[:digit:]]+$
-    goal: ^[[:digit:]]+x[[:digit:]]+y[[:digit:]]+z@$
+    goal: ^maplocation[[:digit:]]+x[[:digit:]]+y$
 
     And the following in the ranges:
-    map{0..maxX}x{0..maxY}y: ^█?|@?#?V?W?M?$
-    player{0..playerCount}: ^[[:digit:]]+x[[:digit:]]+y[[:digit:]]+z#$
-    vampire{0..vampCount}: ^[[:digit:]]+x[[:digit:]]+y[[:digit:]]+zV$
-    mummy{0..mummyCount}: ^[[:digit:]]+x[[:digit:]]+y[[:digit:]]+zM$
+    maplocation{0..maxX}x{0..maxY}y: ^█?|@?#?V?W?M?$
+    player{0..playerCount}: ^maplocation[[:digit:]]+x[[:digit:]]+y$
+    vampire{0..vampCount}: ^maplocation[[:digit:]]+x[[:digit:]]+y$
+    mummy{0..mummyCount}: ^maplocation[[:digit:]]+x[[:digit:]]+y$
 '
 declare -A MAP_STATE
+
+function retrieveMapState {
+    declare -p MAP_STATE
+}
 
 function verifyMapState {
     if [[ ${#MAP_STATE[@]} -le 0 ]]; then
@@ -127,14 +131,15 @@ function verifyMapState {
         echoerr "mummyCount should be a number greater than or equal to 0, not '$mummyCount'"
         return 1
     fi
+    local -r location='^maplocation[[:digit:]]+x[[:digit:]]+y$'
     local -r goal=${MAP_STATE['goal']}
-    if ! [[ "$goal" =~ ^[[:digit:]]+x[[:digit:]]+y[[:digit:]]+z@$ ]]; then
-        echoerr "goal should be present and match '^[[:digit:]]+x[[:digit:]]+y[[:digit:]]+z@$', thus not '$goal'"
+    if ! [[ "$goal" =~ $location ]]; then
+        echoerr "goal should be present and match '$location', thus not '$goal'"
         return 1
     fi
     for (( x=0;x<maxX;x++ )); do
         for (( y=0;y<maxY;y++ )); do
-            key=$( printf "map%dx%dy" "$x" "$y" )
+            key=$( printf "maplocation%dx%dy" "$x" "$y" )
             entry=${MAP_STATE[$key]}
             if ! [[ "$entry" =~ ^█?|@?#?V?W?M?$ ]]; then
                 echoerr "Map entry '$key' has the value '$entry' which is not valid like so: '^█?|@?#?V?W?M?$'"
@@ -145,24 +150,24 @@ function verifyMapState {
     for (( p=0;p<playerCount;p++)); do
         key=$( printf "player%d" "$p" )
         entry=${MAP_STATE[$key]}
-        if ! [[ "$entry" =~ ^[[:digit:]]+x[[:digit:]]+y[[:digit:]]+z#$ ]]; then
-            echoerr "Player entry '$key' has the value '$entry' which is not valid like so: '^[[:digit:]]+x[[:digit:]]+y[[:digit:]]+z#$'"
+        if ! [[ "$entry" =~ $location ]]; then
+            echoerr "Player entry '$key' has the value '$entry' which is not valid like so: '$location'"
             return 1
         fi
     done
     for (( v=0;v<vampCount;v++)); do
         key=$( printf "vamp%d" "$v" )
         entry=${MAP_STATE[$key]}
-        if ! [[ "$entry" =~ ^[[:digit:]]+x[[:digit:]]+y[[:digit:]]+zV$ ]]; then
-            echoerr "Vampire entry '$key' has the value '$entry' which is not valid like so: '^[[:digit:]]+x[[:digit:]]+y[[:digit:]]+zV$'"
+        if ! [[ "$entry" =~ $location ]]; then
+            echoerr "Vampire entry '$key' has the value '$entry' which is not valid like so: '$location'"
             return 1
         fi
     done
     for (( m=0;m<mummyCount;m++)); do
         key=$( printf "mummy%d" "$m" )
         entry=${MAP_STATE[$key]}
-        if ! [[ "$entry" =~ ^[[:digit:]]+x[[:digit:]]+y[[:digit:]]+zM$ ]]; then
-            echoerr "Mummy entry '$key' has the value '$entry' which is not valid like so: '^[[:digit:]]+x[[:digit:]]+y[[:digit:]]+zM$'"
+        if ! [[ "$entry" =~ $location ]]; then
+            echoerr "Mummy entry '$key' has the value '$entry' which is not valid like so: '$location'"
             return 1
         fi
     done
